@@ -48,9 +48,9 @@ def transaction_list(
     total_pages = max(1, (total + PAGE_SIZE - 1) // PAGE_SIZE)
 
     return templates.TemplateResponse(
+        request,
         "transactions.html",
         {
-            "request": request,
             "transactions": transactions,
             "categories": categories,
             "page": page,
