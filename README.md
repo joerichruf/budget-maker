@@ -13,7 +13,7 @@ cd budget-maker
 docker compose up --build
 ```
 
-Open [http://localhost:8000](http://localhost:8000), then go to **Import** to upload your first QFX file.
+Open [http://localhost:8080](http://localhost:8080), then go to **Import** to upload your first QFX file.
 
 Data is persisted in `./data/budget.db` on the host via a volume mount.
 
@@ -59,7 +59,7 @@ pre-commit run --all-files
 DATABASE_URL=sqlite:///./data/budget.db uvicorn app.main:app --reload
 ```
 
-Open [http://localhost:8000](http://localhost:8000).
+Open [http://localhost:8080](http://localhost:8080).
 
 ---
 
