@@ -13,7 +13,7 @@ templates = Jinja2Templates(directory="app/templates")
 
 @router.get("/import", response_class=HTMLResponse)
 def import_page(request: Request):
-    return templates.TemplateResponse("import.html", {"request": request})
+    return templates.TemplateResponse(request, "import.html", {})
 
 
 @router.post("/import")
@@ -30,16 +30,15 @@ async def do_import(
         parsed = parse_qfx(raw, bank_hint=hint)
     except Exception as exc:
         return templates.TemplateResponse(
-            "import.html",
-            {"request": request, "error": f"Failed to parse file: {exc}"},
+            request, "import.html", {"error": f"Failed to parse file: {exc}"}
         )
 
     result = import_parsed_file(parsed, db)
 
     return templates.TemplateResponse(
+        request,
         "import.html",
         {
-            "request": request,
             "result": result,
             "bank": parsed.bank,
             "filename": file.filename,
