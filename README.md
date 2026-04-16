@@ -13,6 +13,8 @@ cd budget-maker
 docker compose up --build
 ```
 
+test
+
 Open [http://localhost:8000](http://localhost:8000), then go to **Import** to upload your first QFX file.
 
 Data is persisted in `./data/budget.db` on the host via a volume mount.
