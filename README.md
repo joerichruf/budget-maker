@@ -13,7 +13,7 @@ cd budget-maker
 docker compose up --build
 ```
 
-test
+te
 
 Open [http://localhost:8000](http://localhost:8000), then go to **Import** to upload your first QFX file.
 
