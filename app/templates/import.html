@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}Import QFX — Budget Maker{% endblock %}
+
+{% block content %}
+<h2>Import QFX File</h2>
+
+{% if error %}
+<article class="error-box">
+  <strong>Error:</strong> {{ error }}
+</article>
+{% endif %}
+
+{% if result %}
+<article class="result-box">
+  <h3>Import complete — <em>{{ filename }}</em> ({{ bank }})</h3>
+  <ul>
+    <li><strong>{{ result.imported }}</strong> transaction(s) imported</li>
+    <li><strong>{{ result.duplicates }}</strong> duplicate(s) skipped</li>
+    {% if result.errors %}<li><strong>{{ result.errors }}</strong> error(s)</li>{% endif %}
+  </ul>
+  <a href="/" role="button" class="secondary">View transactions</a>
+</article>
+{% endif %}
+
+<form method="post" action="/import" enctype="multipart/form-data">
+  <fieldset>
+    <label for="file">QFX file</label>
+    <input type="file" id="file" name="file" accept=".qfx,.ofx" required />
+
+    <label for="bank_hint">Bank (leave Auto to detect from file)</label>
+    <select id="bank_hint" name="bank_hint">
+      <option value="auto">Auto-detect</option>
+      <option value="scotiabank">Scotiabank</option>
+      <option value="bmo">BMO</option>
+    </select>
+  </fieldset>
+
+  <button type="submit">Import</button>
+</form>
+{% endblock %}

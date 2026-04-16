@@ -1,0 +1,132 @@
+/* ── Layout ── */
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+/* ── Filters ── */
+.filters-form {
+  background: var(--pico-card-background-color, #f9f9f9);
+  border: 1px solid var(--pico-muted-border-color, #ddd);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.filter-row label {
+  flex: 1 1 160px;
+  margin-bottom: 0;
+}
+
+.filter-actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+  padding-bottom: 2px;
+}
+
+/* ── Table ── */
+.table-wrapper {
+  overflow-x: auto;
+}
+
+table {
+  font-size: 0.9rem;
+}
+
+.amount-col {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.amount-neg { color: #e53935; }
+.amount-pos { color: #43a047; }
+
+.nowrap { white-space: nowrap; }
+
+.muted { color: var(--pico-muted-color, #888); }
+
+/* ── Badges ── */
+.cat-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  border: 1px solid #ccc;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.bank-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: bold;
+  text-transform: uppercase;
+}
+
+.bank-scotiabank { background: #d32f2f20; color: #c62828; border: 1px solid #ef9a9a; }
+.bank-bmo        { background: #1565c020; color: #0d47a1; border: 1px solid #90caf9; }
+.bank-unknown    { background: #eee;       color: #555;    border: 1px solid #ccc;    }
+
+.manual-icon {
+  font-size: 0.75rem;
+  color: var(--pico-muted-color, #888);
+  margin-left: 2px;
+  cursor: default;
+}
+
+/* ── Inline category change ── */
+.inline-form summary {
+  font-size: 0.8rem;
+  padding: 2px 8px;
+  display: inline-block;
+  cursor: pointer;
+}
+
+.inline-form[open] {
+  background: var(--pico-card-background-color, #f9f9f9);
+  border: 1px solid var(--pico-muted-border-color, #ddd);
+  border-radius: 6px;
+  padding: 0.5rem;
+  position: relative;
+  z-index: 10;
+}
+
+.inline-form select {
+  font-size: 0.85rem;
+  margin-bottom: 0.25rem;
+}
+
+/* ── Import result / error boxes ── */
+.result-box {
+  border-left: 4px solid #43a047;
+  background: #e8f5e920;
+}
+
+.error-box {
+  border-left: 4px solid #e53935;
+  background: #ffebee20;
+}
+
+/* ── Pagination ── */
+.pagination {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1.5rem;
+}
+
+/* ── Misc ── */
+.small-btn { font-size: 0.8rem; }

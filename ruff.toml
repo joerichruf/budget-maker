@@ -1,0 +1,15 @@
+[lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes (undefined names, unused imports, syntax errors)
+    "I",   # isort
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long — ruff-format handles line length
+]
+
+[format]
+quote-style = "double"
+indent-style = "space"
