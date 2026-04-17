@@ -70,6 +70,11 @@ def parse_qfx(file_bytes: bytes, bank_hint: BankName | None = None) -> ParsedFil
     try:
         account_number = ofx.account.account_id
         account_type = ofx.account.account_type
+        # Credit card QFX files use <CCACCTFROM> which has no <ACCTTYPE> tag
+        if not account_type:
+            raw_upper = file_bytes.upper()
+            if b"<CCACCTFROM>" in raw_upper or b"CCSTMTRS" in raw_upper:
+                account_type = "CREDITCARD"
     except AttributeError:
         account_number = None
         account_type = None

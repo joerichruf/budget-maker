@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}Goals — Budget Maker{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>Goals</h2>
+</div>
+
+<p class="muted">
+  Avg monthly net (last 3 months):
+  <strong class="{% if avg_monthly_net >= 0 %}amount-pos{% else %}amount-neg{% endif %}">
+    {{ '+' if avg_monthly_net >= 0 else '' }}${{ "%.2f"|format(avg_monthly_net) }}
+  </strong>
+</p>
+
+{# ── Account Balance Tracker ── #}
+<section class="goals-section">
+  <h3>Account Balances</h3>
+
+  {% if balances %}
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Account</th>
+          <th>Type</th>
+          <th class="amount-col">Balance</th>
+          <th>As of</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in balances %}
+        <tr>
+          <td>{{ b.label }}</td>
+          <td><span class="account-type-badge">{{ b.account_type }}</span></td>
+          <td class="amount-col {% if b.balance >= 0 %}amount-pos{% else %}amount-neg{% endif %}">
+            {{ '+' if b.balance >= 0 else '' }}${{ "%.2f"|format(b.balance) }}
+          </td>
+          <td class="muted">{{ b.as_of_date }}</td>
+          <td>
+            <form method="post" action="/goals/balance/{{ b.id }}/delete">
+              <button type="submit" class="outline small-btn danger-btn">Delete</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">No balances recorded yet.</p>
+  {% endif %}
+
+  <details class="add-form-section">
+    <summary role="button" class="outline">+ Add Balance Entry</summary>
+    <form method="post" action="/goals/balance/add" class="add-form">
+      <div class="form-row">
+        <label>
+          Label
+          <input type="text" name="label" placeholder="e.g. Scotia Checking" required />
+        </label>
+        <label>
+          Type
+          <select name="account_type" required>
+            {% for at in account_types %}
+            <option value="{{ at }}">{{ at }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>
+          Balance ($)
+          <input type="number" name="balance" step="0.01" placeholder="e.g. -10000 for debt" required />
+        </label>
+        <label>
+          As of date
+          <input type="date" name="as_of_date" value="{{ today }}" required />
+        </label>
+        <div class="filter-actions">
+          <button type="submit">Save</button>
+        </div>
+      </div>
+    </form>
+  </details>
+</section>
+
+{# ── Goals ── #}
+<section class="goals-section">
+  <h3>Payoff & Savings Goals</h3>
+
+  {% for gd in goal_details %}
+  {% set goal = gd.goal %}
+  <div class="goal-card {% if gd.on_track %}goal-ok{% else %}goal-behind{% endif %}">
+    <div class="goal-header">
+      <strong>{{ goal.name }}</strong>
+      <form method="post" action="/goals/{{ goal.id }}/delete" style="display:inline">
+        <button type="submit" class="outline small-btn danger-btn">Delete</button>
+      </form>
+    </div>
+
+    <div class="goal-body">
+      <div class="goal-stats">
+        <div class="goal-stat">
+          <span class="stat-label">Starting</span>
+          <span class="stat-value">${{ "%.2f"|format(goal.starting_amount) }}</span>
+        </div>
+        <div class="goal-stat">
+          <span class="stat-label">Target</span>
+          <span class="stat-value">${{ "%.2f"|format(goal.target_amount) }}</span>
+        </div>
+        <div class="goal-stat">
+          <span class="stat-label">Timeframe</span>
+          <span class="stat-value">{{ goal.target_months }} months</span>
+        </div>
+        <div class="goal-stat">
+          <span class="stat-label">Required / month</span>
+          <span class="stat-value amount-neg">${{ "%.2f"|format(gd.monthly_required) }}</span>
+        </div>
+      </div>
+
+      <div class="goal-verdict {% if gd.on_track %}verdict-ok{% else %}verdict-behind{% endif %}">
+        {% if gd.on_track %}
+        ✓ On track — your avg monthly surplus (${{ "%.2f"|format(avg_monthly_net) }}) covers the
+        required ${{ "%.2f"|format(gd.monthly_required) }}/month.
+        {% if gd.months_at_current is not none %}
+        At current pace you'd finish in <strong>{{ gd.months_at_current }} months</strong>.
+        {% endif %}
+        {% else %}
+        ✗ Gap of <strong>${{ "%.2f"|format(gd.gap) }}/month</strong> —
+        your current avg surplus is ${{ "%.2f"|format(avg_monthly_net) }} but you need
+        ${{ "%.2f"|format(gd.monthly_required) }}/month.
+        {% if gd.months_at_current is not none %}
+        At current pace: <strong>{{ gd.months_at_current }} months</strong> (vs {{ goal.target_months }} target).
+        {% elif avg_monthly_net <= 0 %}
+        Your current spending exceeds income — the goal cannot be reached without reducing expenses.
+        {% endif %}
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <p class="muted">No goals yet.</p>
+  {% endfor %}
+
+  <details class="add-form-section">
+    <summary role="button" class="outline">+ Add Goal</summary>
+    <form method="post" action="/goals/add" class="add-form">
+      <div class="form-row">
+        <label>
+          Goal name
+          <input type="text" name="name" placeholder="e.g. Pay off credit card" required />
+        </label>
+        <label>
+          Starting amount ($)
+          <input type="number" name="starting_amount" step="0.01" placeholder="e.g. 10000" required />
+        </label>
+        <label>
+          Target amount ($)
+          <input type="number" name="target_amount" step="0.01" placeholder="e.g. 0" value="0" required />
+        </label>
+        <label>
+          Target months
+          <input type="number" name="target_months" min="1" placeholder="e.g. 6" required />
+        </label>
+        <div class="filter-actions">
+          <button type="submit">Save</button>
+        </div>
+      </div>
+    </form>
+  </details>
+</section>
+{% endblock %}

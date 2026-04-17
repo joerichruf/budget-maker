@@ -1,0 +1,199 @@
+{% extends "base.html" %}
+{% block title %}Insights — Budget Maker{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>Insights</h2>
+</div>
+
+{# ── Monthly Balance ── #}
+<section class="insights-section">
+  <h3>Monthly Net Balance</h3>
+  {% if monthly_balance %}
+  <div class="chart-container monthly-chart">
+    <canvas id="monthlyChart"></canvas>
+  </div>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr><th>Month</th><th class="amount-col">Net</th><th class="amount-col">Running</th></tr>
+      </thead>
+      <tbody>
+        {% set running = namespace(total=0) %}
+        {% for row in monthly_balance %}
+        {% set running.total = running.total + row.net %}
+        <tr>
+          <td>{{ row.month }}</td>
+          <td class="amount-col {% if row.net >= 0 %}amount-pos{% else %}amount-neg{% endif %}">
+            {{ '+' if row.net >= 0 else '' }}${{ "%.2f"|format(row.net) }}
+          </td>
+          <td class="amount-col {% if running.total >= 0 %}amount-pos{% else %}amount-neg{% endif %}">
+            {{ '+' if running.total >= 0 else '' }}${{ "%.2f"|format(running.total) }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">No transaction data yet.</p>
+  {% endif %}
+</section>
+
+{# ── Top 10 Recurring ── #}
+<section class="insights-section">
+  <h3>Top 10 Recurring Expenses</h3>
+  {% if recurring %}
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Description</th>
+          <th class="amount-col">Times</th>
+          <th class="amount-col">Avg / occurrence</th>
+          <th class="amount-col">Total spent</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in recurring %}
+        <tr>
+          <td>{{ r.description }}</td>
+          <td class="amount-col">{{ r.count }}</td>
+          <td class="amount-col amount-neg">${{ "%.2f"|format(r.avg_amount|abs) }}</td>
+          <td class="amount-col amount-neg">-${{ "%.2f"|format(r.total|abs) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">No recurring expenses found.</p>
+  {% endif %}
+</section>
+
+{# ── Top 10 Categories ── #}
+<section class="insights-section">
+  <h3>Top 10 Expense Categories</h3>
+  {% if top_categories %}
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Category</th>
+          <th class="amount-col">Transactions</th>
+          <th class="amount-col">Total spent</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for cat in top_categories %}
+        <tr>
+          <td>
+            <span class="cat-badge" style="background:{{ cat.color }}18; border-color:{{ cat.color }}; color:{{ cat.color }}">
+              {{ cat.name }}
+            </span>
+          </td>
+          <td class="amount-col">{{ cat.count }}</td>
+          <td class="amount-col amount-neg">-${{ "%.2f"|format(cat.total|abs) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">No expense data yet.</p>
+  {% endif %}
+</section>
+
+{# ── Where to save money ── #}
+{% if variance_data or spikes %}
+<section class="insights-section">
+  <h3>Where You Could Save</h3>
+
+  {% if variance_data %}
+  <h4>High-Variance Categories <small class="muted">— inconsistent spending, most room to cut</small></h4>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Category</th>
+          <th class="amount-col">Avg / month</th>
+          <th class="amount-col">Std deviation</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in variance_data %}
+        <tr>
+          <td>{{ v.category }}</td>
+          <td class="amount-col">${{ "%.2f"|format(v.avg_monthly) }}</td>
+          <td class="amount-col amount-neg">±${{ "%.2f"|format(v.stdev) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+
+  {% if spikes %}
+  <h4 style="margin-top:1.5rem">Spending Spikes <small class="muted">— months where you spent well above your average</small></h4>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Month</th>
+          <th>Category</th>
+          <th class="amount-col">Spent</th>
+          <th class="amount-col">Your avg</th>
+          <th class="amount-col">Over by</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in spikes %}
+        <tr>
+          <td>{{ s.month }}</td>
+          <td>{{ s.category }}</td>
+          <td class="amount-col amount-neg">-${{ "%.2f"|format(s.spend) }}</td>
+          <td class="amount-col muted">-${{ "%.2f"|format(s.avg) }}</td>
+          <td class="amount-col amount-neg">-${{ "%.2f"|format(s.excess) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+  const months = {{ chart_months | safe }};
+  const nets   = {{ chart_nets   | safe }};
+
+  new Chart(document.getElementById('monthlyChart'), {
+    type: 'bar',
+    data: {
+      labels: months,
+      datasets: [{
+        label: 'Net balance',
+        data: nets,
+        backgroundColor: nets.map(v => v >= 0 ? '#43a04799' : '#e5393599'),
+        borderColor:      nets.map(v => v >= 0 ? '#43a047'   : '#e53935'),
+        borderWidth: 1,
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => (ctx.parsed.y >= 0 ? '+' : '') + '$' + ctx.parsed.y.toFixed(2)
+          }
+        }
+      },
+      scales: {
+        y: { ticks: { callback: v => (v >= 0 ? '+' : '') + '$' + v.toLocaleString() } }
+      }
+    }
+  });
+</script>
+{% endblock %}

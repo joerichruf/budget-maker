@@ -9,5 +9,6 @@ services:
       - ./data:/data
     environment:
       DATABASE_URL: sqlite:////data/budget.db
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     command: uvicorn app.main:app --host 0.0.0.0 --port 8080 --log-level debug
     restart: unless-stopped
