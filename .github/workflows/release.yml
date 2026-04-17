@@ -1,82 +1,14 @@
-name: Release
+# Retired — release logic (Docker push + git tag + GitHub Release) is now
+# handled by the `docker` job in ci.yml.
+#
+# This file is kept as a manual escape hatch only.
+name: Release (manual)
 
 on:
-  workflow_run:
-    workflows: [CI]
-    branches: [main]
-    types: [completed]
-
-permissions:
-  contents: write
-  packages: write
+  workflow_dispatch:
 
 jobs:
-  release:
-    name: Tag, publish image & create release
+  noop:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      # ── Derive next version from existing tags ──────────────────────────
-      - name: Compute next version
-        id: version
-        run: |
-          latest=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
-          if [ -z "$latest" ]; then
-            next="v0.1.0"
-          else
-            IFS='.' read -r major minor patch <<< "${latest#v}"
-            next="v${major}.${minor}.$((patch + 1))"
-          fi
-          echo "tag=$next" >> "$GITHUB_OUTPUT"
-
-      # ── Push the new tag ────────────────────────────────────────────────
-      - name: Push tag
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "${{ steps.version.outputs.tag }}"
-          git push origin "${{ steps.version.outputs.tag }}"
-
-      # ── Build & push Docker image to GHCR ──────────────────────────────
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build and push
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: |
-            ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:${{ steps.version.outputs.tag }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      # ── Create GitHub Release with auto-generated notes ─────────────────
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          generate_release_notes: true
-          body: |
-            ## Docker image
-
-            ```bash
-            docker pull ghcr.io/${{ github.repository }}:${{ steps.version.outputs.tag }}
-            ```
-
-            Or update your `docker-compose.yml`:
-            ```yaml
-            image: ghcr.io/${{ github.repository }}:${{ steps.version.outputs.tag }}
-            ```
+      - run: echo "Release is automated via ci.yml on every push to main."

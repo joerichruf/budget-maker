@@ -1,0 +1,12 @@
+mode: Mainline
+next-version: 0.1.0
+
+branches:
+  main:
+    regex: ^main$
+    tag: ''
+    increment: Patch
+  pull-request:
+    regex: ^(pull-request|PR)/
+    tag: PR
+    increment: Inherit
