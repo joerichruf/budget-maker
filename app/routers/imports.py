@@ -1,3 +1,6 @@
+import logging
+import traceback
+
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -6,6 +9,8 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.importer import import_parsed_file
 from app.parser import BankName, parse_qfx
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -28,12 +33,16 @@ async def do_import(
 
     try:
         parsed = parse_qfx(raw, bank_hint=hint)
+        result = import_parsed_file(parsed, db)
     except Exception as exc:
-        return templates.TemplateResponse(
-            request, "import.html", {"error": f"Failed to parse file: {exc}"}
+        logger.error(
+            "Import failed for file %s:\n%s", file.filename, traceback.format_exc()
         )
-
-    result = import_parsed_file(parsed, db)
+        return templates.TemplateResponse(
+            request,
+            "import.html",
+            {"error": f"Import failed: {exc}"},
+        )
 
     return templates.TemplateResponse(
         request,

@@ -1,6 +1,9 @@
+import json
+
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import extract, func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -25,12 +28,10 @@ def transaction_list(
 
     if category_id:
         query = query.filter(Transaction.category_id == category_id)
-    if bank:
+    if bank and bank != "unknown":
         query = query.filter(Transaction.bank == bank)
     if month:
         year, mo = month.split("-")
-        from sqlalchemy import extract
-
         query = query.filter(
             extract("year", Transaction.date) == int(year),
             extract("month", Transaction.date) == int(mo),
@@ -77,3 +78,62 @@ def update_category(
         txn.is_manual_category = True
         db.commit()
     return RedirectResponse(url="/", status_code=303)
+
+
+@router.get("/dashboard", response_class=HTMLResponse)
+def dashboard(
+    request: Request,
+    month: str | None = None,
+    db: Session = Depends(get_db),
+):
+    query = db.query(Transaction)
+    if month:
+        year, mo = month.split("-")
+        query = query.filter(
+            extract("year", Transaction.date) == int(year),
+            extract("month", Transaction.date) == int(mo),
+        )
+
+    # Expenses pie chart — negative amounts only, grouped by category
+    expense_rows = (
+        db.query(
+            Category.name,
+            Category.color,
+            func.sum(Transaction.amount).label("total"),
+        )
+        .join(Transaction, Transaction.category_id == Category.id)
+        .filter(Transaction.amount < 0)
+        .group_by(Category.id)
+    )
+    if month:
+        year, mo = month.split("-")
+        expense_rows = expense_rows.filter(
+            extract("year", Transaction.date) == int(year),
+            extract("month", Transaction.date) == int(mo),
+        )
+    expense_rows = expense_rows.order_by(func.sum(Transaction.amount)).all()
+
+    chart_labels = [r.name for r in expense_rows]
+    chart_values = [round(abs(r.total), 2) for r in expense_rows]
+    chart_colors = [r.color for r in expense_rows]
+
+    # Summary totals
+    all_txns = query.all()
+    total_income = sum(t.amount for t in all_txns if t.amount > 0)
+    total_expenses = sum(t.amount for t in all_txns if t.amount < 0)
+    net = total_income + total_expenses
+
+    return templates.TemplateResponse(
+        request,
+        "dashboard.html",
+        {
+            "month": month,
+            "chart_labels": json.dumps(chart_labels),
+            "chart_values": json.dumps(chart_values),
+            "chart_colors": json.dumps(chart_colors),
+            "total_income": total_income,
+            "total_expenses": total_expenses,
+            "net": net,
+            "has_data": len(expense_rows) > 0,
+        },
+    )

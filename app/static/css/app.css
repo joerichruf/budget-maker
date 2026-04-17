@@ -130,3 +130,56 @@ table {
 
 /* ── Misc ── */
 .small-btn { font-size: 0.8rem; }
+
+/* ── Dashboard summary cards ── */
+.summary-cards {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  flex-wrap: wrap;
+}
+
+.summary-card {
+  flex: 1 1 160px;
+  border-radius: 8px;
+  padding: 1.2rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  border: 1px solid var(--pico-muted-border-color, #ddd);
+}
+
+.summary-card .card-label {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--pico-muted-color, #888);
+}
+
+.summary-card .card-value {
+  font-size: 1.6rem;
+  font-weight: bold;
+  font-variant-numeric: tabular-nums;
+}
+
+.summary-card.income  { border-left: 4px solid #43a047; }
+.summary-card.income .card-value { color: #43a047; }
+
+.summary-card.expenses { border-left: 4px solid #e53935; }
+.summary-card.expenses .card-value { color: #e53935; }
+
+.summary-card.net-pos { border-left: 4px solid #43a047; }
+.summary-card.net-pos .card-value { color: #43a047; }
+
+.summary-card.net-neg { border-left: 4px solid #e53935; }
+.summary-card.net-neg .card-value { color: #e53935; }
+
+/* ── Chart ── */
+.chart-wrapper {
+  margin-top: 1rem;
+}
+
+.chart-container {
+  max-width: 600px;
+  margin: 0 auto;
+}

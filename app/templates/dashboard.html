@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Budget Maker{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>Dashboard</h2>
+</div>
+
+{# ── Month filter ── #}
+<form method="get" action="/dashboard" class="filters-form">
+  <div class="filter-row">
+    <label>
+      Month
+      <input type="month" name="month" value="{{ month or '' }}" />
+    </label>
+    <div class="filter-actions">
+      <button type="submit">Filter</button>
+      <a href="/dashboard" role="button" class="secondary outline">Clear</a>
+    </div>
+  </div>
+</form>
+
+{# ── Summary cards ── #}
+<div class="summary-cards">
+  <div class="summary-card income">
+    <span class="card-label">Income</span>
+    <span class="card-value">+${{ "%.2f"|format(total_income) }}</span>
+  </div>
+  <div class="summary-card expenses">
+    <span class="card-label">Expenses</span>
+    <span class="card-value">-${{ "%.2f"|format(total_expenses|abs) }}</span>
+  </div>
+  <div class="summary-card net {% if net >= 0 %}net-pos{% else %}net-neg{% endif %}">
+    <span class="card-label">Net</span>
+    <span class="card-value">{{ '+' if net >= 0 else '' }}${{ "%.2f"|format(net) }}</span>
+  </div>
+</div>
+
+{# ── Pie chart ── #}
+{% if has_data %}
+<div class="chart-wrapper">
+  <h3>Spending by Category{% if month %} — {{ month }}{% endif %}</h3>
+  <div class="chart-container">
+    <canvas id="expenseChart"></canvas>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script>
+  const labels = {{ chart_labels | safe }};
+  const values = {{ chart_values | safe }};
+  const colors = {{ chart_colors | safe }};
+
+  new Chart(document.getElementById('expenseChart'), {
+    type: 'doughnut',
+    data: {
+      labels: labels,
+      datasets: [{
+        data: values,
+        backgroundColor: colors.map(c => c + '99'),  // 60% opacity fill
+        borderColor: colors,
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      plugins: {
+        legend: {
+          position: 'right',
+        },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => {
+              const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+              const pct = ((ctx.parsed / total) * 100).toFixed(1);
+              return ` ${ctx.label}: $${ctx.parsed.toFixed(2)} (${pct}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+</script>
+{% else %}
+<article>
+  <p>No expense data{% if month %} for {{ month }}{% endif %}. <a href="/import">Import a QFX file</a> to get started.</p>
+</article>
+{% endif %}
+{% endblock %}

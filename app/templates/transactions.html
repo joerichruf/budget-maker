@@ -105,12 +105,13 @@
 {# ── Pagination ── #}
 {% if total_pages > 1 %}
 <nav class="pagination">
+  {% set qs %}{% if filters.month %}&month={{ filters.month }}{% endif %}{% if filters.bank %}&bank={{ filters.bank }}{% endif %}{% if filters.category_id %}&category_id={{ filters.category_id }}{% endif %}{% endset %}
   {% if page > 1 %}
-  <a href="?page={{ page - 1 }}&month={{ filters.month or '' }}&bank={{ filters.bank or '' }}&category_id={{ filters.category_id or '' }}">&larr; Prev</a>
+  <a href="?page={{ page - 1 }}{{ qs }}">&larr; Prev</a>
   {% endif %}
   <span>Page {{ page }} of {{ total_pages }}</span>
   {% if page < total_pages %}
-  <a href="?page={{ page + 1 }}&month={{ filters.month or '' }}&bank={{ filters.bank or '' }}&category_id={{ filters.category_id or '' }}">Next &rarr;</a>
+  <a href="?page={{ page + 1 }}{{ qs }}">Next &rarr;</a>
   {% endif %}
 </nav>
 {% endif %}
