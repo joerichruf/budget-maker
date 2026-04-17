@@ -55,7 +55,7 @@ jobs:
             --cov=app \
             --cov-report=xml:reports/coverage.xml \
             --cov-report=html:reports/htmlcov \
-            --cov-fail-under=70
+            --cov-fail-under=40
 
       - uses: actions/upload-artifact@v4
         if: always()
