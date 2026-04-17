@@ -73,3 +73,25 @@ class Transaction(Base):
     category = relationship("Category", back_populates="transactions")
 
     __table_args__ = (UniqueConstraint("fitid", "bank", name="uq_fitid_bank"),)
+
+
+class BalanceEntry(Base):
+    __tablename__ = "balance_entries"
+
+    id = Column(Integer, primary_key=True)
+    label = Column(String, nullable=False)  # e.g. "Scotia Checking"
+    account_type = Column(String, nullable=False)  # CHECKING | CREDITCARD | SAVINGS
+    balance = Column(Float, nullable=False)
+    as_of_date = Column(Date, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Goal(Base):
+    __tablename__ = "goals"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)  # e.g. "Pay off credit card"
+    starting_amount = Column(Float, nullable=False)
+    target_amount = Column(Float, nullable=False)
+    target_months = Column(Integer, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)

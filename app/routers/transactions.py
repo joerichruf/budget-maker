@@ -17,6 +17,66 @@ templates = Jinja2Templates(directory="app/templates")
 PAGE_SIZE = 50
 
 
+def _period_income_expenses(q) -> tuple[float, float]:
+    income = float(
+        q.with_entities(func.coalesce(func.sum(Transaction.amount), 0))
+        .filter(Transaction.amount > 0)
+        .scalar()
+        or 0
+    )
+    expenses = float(
+        q.with_entities(func.coalesce(func.sum(Transaction.amount), 0))
+        .filter(Transaction.amount < 0)
+        .scalar()
+        or 0
+    )
+    return income, expenses
+
+
+def _prev_month_query(db: Session, month: str | None, category_id, bank, account_type):
+    """Return (query, label) for the comparison period, or (None, None)."""
+    if month:
+        year_int, mo_int = map(int, month.split("-"))
+        prev_mo = mo_int - 1 if mo_int > 1 else 12
+        prev_yr = year_int if mo_int > 1 else year_int - 1
+    else:
+        latest = (
+            db.query(
+                extract("year", Transaction.date).label("year"),
+                extract("month", Transaction.date).label("month"),
+            )
+            .distinct()
+            .order_by(
+                extract("year", Transaction.date).desc(),
+                extract("month", Transaction.date).desc(),
+            )
+            .limit(2)
+            .all()
+        )
+        if len(latest) < 2:
+            return None, None
+        prev_yr, prev_mo = int(latest[1].year), int(latest[1].month)
+
+    q = db.query(Transaction).filter(
+        extract("year", Transaction.date) == prev_yr,
+        extract("month", Transaction.date) == prev_mo,
+    )
+    if category_id:
+        q = q.filter(Transaction.category_id.in_(category_id))
+    if bank and bank != "unknown":
+        q = q.filter(Transaction.bank == bank)
+    if account_type:
+        q = q.filter(
+            Transaction.account_id.in_(
+                db.query(Account.id).filter(Account.account_type == account_type)
+            )
+        )
+    import calendar as _cal
+
+    label = f"vs {_cal.month_name[prev_mo]} {prev_yr}"
+    return q, label
+
+
 def _available_months(db: Session) -> list[dict]:
     rows = (
         db.query(
@@ -70,18 +130,16 @@ def transaction_list(
             )
         )
 
-    total_income = float(
-        query.with_entities(func.coalesce(func.sum(Transaction.amount), 0))
-        .filter(Transaction.amount > 0)
-        .scalar()
-        or 0
-    )
-    total_expenses = float(
-        query.with_entities(func.coalesce(func.sum(Transaction.amount), 0))
-        .filter(Transaction.amount < 0)
-        .scalar()
-        or 0
-    )
+    total_income, total_expenses = _period_income_expenses(query)
+
+    prev_q, delta_label = _prev_month_query(db, month, category_id, bank, account_type)
+    if prev_q is not None:
+        prev_income, prev_expenses = _period_income_expenses(prev_q)
+        income_delta: float | None = total_income - prev_income
+        expenses_delta: float | None = total_expenses - prev_expenses
+        net_delta: float | None = income_delta + expenses_delta
+    else:
+        income_delta = expenses_delta = net_delta = None
 
     total = query.count()
 
@@ -124,6 +182,10 @@ def transaction_list(
             "total_income": total_income,
             "total_expenses": total_expenses,
             "net": total_income + total_expenses,
+            "income_delta": income_delta,
+            "expenses_delta": expenses_delta,
+            "net_delta": net_delta,
+            "delta_label": delta_label,
             "available_months": _available_months(db),
             "available_account_types": available_account_types,
             "sort": sort,

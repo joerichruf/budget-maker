@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block title %}Review Uncategorized — Budget Maker{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>Review "Other" Transactions</h2>
+  <div style="display:flex;gap:0.5rem;align-items:center">
+    <span id="suggestion-status" class="muted" style="font-size:0.85rem"></span>
+    <button id="suggest-btn" class="outline" onclick="loadSuggestions()">✦ Ask Claude</button>
+    <button id="accept-all-btn" class="outline" style="display:none" onclick="acceptAll()">Accept All Suggestions</button>
+  </div>
+</div>
+
+{% if not rows %}
+<article>
+  <p>No uncategorized expenses — everything has been reviewed!</p>
+</article>
+{% else %}
+
+<p class="muted" style="margin-bottom:1rem;font-size:0.875rem">
+  {{ rows|length }} unique description{{ 's' if rows|length != 1 else '' }}.
+  Click <strong>Ask Claude</strong> to get AI-powered suggestions, then accept or override each one.
+</p>
+
+<div class="table-wrapper">
+  <table id="review-table">
+    <thead>
+      <tr>
+        <th>Description</th>
+        <th class="amount-col">Count</th>
+        <th class="amount-col">Total (CAD)</th>
+        <th>AI Suggestion</th>
+        <th>Assign Category</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr id="row-{{ loop.index }}" data-desc="{{ row.description }}">
+        <td>{{ row.description }}</td>
+        <td class="amount-col">{{ row.count }}</td>
+        <td class="amount-col amount-neg">{{ "%.2f"|format(row.total) }}</td>
+        <td class="suggestion-cell muted" id="sug-{{ loop.index }}">—</td>
+        <td>
+          <form method="post" action="/review/apply" class="apply-form" style="margin:0">
+            <input type="hidden" name="description" value="{{ row.description }}" />
+            <select name="category_id" class="filter-chip" style="width:100%;max-width:220px"
+                    id="sel-{{ loop.index }}" onchange="markEdited({{ loop.index }})">
+              {% for cat in categories %}
+              <option value="{{ cat.id }}"
+                      data-name="{{ cat.name }}"
+                      {% if cat.name == 'Other' %}selected{% endif %}>
+                {{ cat.name }}
+              </option>
+              {% endfor %}
+            </select>
+          </form>
+        </td>
+        <td>
+          <button class="small-btn outline" onclick="submitRow({{ loop.index }})" id="save-{{ loop.index }}">
+            Save
+          </button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% endif %}
+
+<script>
+const CAT_MAP = {};
+{% for cat in categories %}
+CAT_MAP["{{ cat.name }}"] = {{ cat.id }};
+{% endfor %}
+
+// Track AI suggestions {description: categoryName}
+let suggestions = {};
+// Track which rows were edited by the user (don't overwrite with AI suggestion)
+const edited = new Set();
+
+function markEdited(idx) {
+  edited.add(idx);
+}
+
+async function loadSuggestions() {
+  const btn = document.getElementById('suggest-btn');
+  const status = document.getElementById('suggestion-status');
+  btn.disabled = true;
+  btn.textContent = '⏳ Asking Claude…';
+  status.textContent = '';
+
+  try {
+    const resp = await fetch('/review/suggestions');
+    if (!resp.ok) throw new Error('Request failed');
+    suggestions = await resp.json();
+
+    const descs = Object.keys(suggestions);
+    if (descs.length === 0) {
+      status.textContent = 'No suggestions returned (check API key).';
+      btn.textContent = '✦ Ask Claude';
+      btn.disabled = false;
+      return;
+    }
+
+    // Apply suggestions to rows
+    document.querySelectorAll('#review-table tbody tr').forEach(row => {
+      const desc = row.dataset.desc;
+      const idx = row.id.replace('row-', '');
+      const sugCell = document.getElementById('sug-' + idx);
+      const sel = document.getElementById('sel-' + idx);
+
+      if (desc && suggestions[desc]) {
+        const sugName = suggestions[desc];
+        sugCell.textContent = sugName;
+        sugCell.classList.remove('muted');
+        sugCell.style.color = 'var(--pico-primary, #1a73e8)';
+        // Pre-fill the select if the user hasn't changed it
+        if (!edited.has(parseInt(idx)) && CAT_MAP[sugName] !== undefined) {
+          sel.value = CAT_MAP[sugName];
+        }
+      }
+    });
+
+    const count = descs.length;
+    status.textContent = `${count} suggestion${count !== 1 ? 's' : ''} ready`;
+    btn.textContent = '✦ Ask Claude';
+    btn.disabled = false;
+    document.getElementById('accept-all-btn').style.display = '';
+
+  } catch (err) {
+    status.textContent = 'Error: ' + err.message;
+    btn.textContent = '✦ Ask Claude';
+    btn.disabled = false;
+  }
+}
+
+function submitRow(idx) {
+  const row = document.getElementById('row-' + idx);
+  const form = row.querySelector('.apply-form');
+  form.submit();
+}
+
+async function acceptAll() {
+  // Build payload: use current select value for each row that has an AI suggestion
+  const payload = {};
+  document.querySelectorAll('#review-table tbody tr').forEach(row => {
+    const desc = row.dataset.desc;
+    const idx = row.id.replace('row-', '');
+    const sel = document.getElementById('sel-' + idx);
+    if (!sel) return;
+    const catName = sel.options[sel.selectedIndex].dataset.name;
+    if (catName && catName !== 'Other') {
+      payload[desc] = catName;
+    }
+  });
+
+  if (Object.keys(payload).length === 0) {
+    alert('No non-Other categories selected.');
+    return;
+  }
+
+  const btn = document.getElementById('accept-all-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Saving…';
+
+  try {
+    const resp = await fetch('/review/apply-batch', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    if (!resp.ok) throw new Error('Save failed');
+    const data = await resp.json();
+    window.location.reload();
+  } catch (err) {
+    alert('Error saving: ' + err.message);
+    btn.disabled = false;
+    btn.textContent = 'Accept All Suggestions';
+  }
+}
+</script>
+{% endblock %}

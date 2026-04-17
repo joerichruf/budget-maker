@@ -15,71 +15,82 @@
   {%- if filters.account_type %}&account_type={{ filters.account_type }}{% endif -%}
 {%- endset -%}
 
-<form method="get" action="/" class="filters-form">
-  <div class="filter-row">
+{%- set has_filters = filters.month or filters.bank or filters.account_type or filters.category_ids -%}
 
-    <label>
-      Month
-      <select name="month">
+<div class="filters-panel">
+  <form method="get" action="/" id="filter-form">
+    <div class="filter-chips-row">
+
+      <select name="month" class="filter-chip{% if filters.month %} active{% endif %}" onchange="this.form.submit()">
         <option value="">All months</option>
         {% for m in available_months %}
         <option value="{{ m.value }}" {% if filters.month == m.value %}selected{% endif %}>{{ m.display }}</option>
         {% endfor %}
       </select>
-    </label>
 
-    <label>
-      Bank
-      <select name="bank">
+      <select name="bank" class="filter-chip{% if filters.bank %} active{% endif %}" onchange="this.form.submit()">
         <option value="">All banks</option>
         <option value="scotiabank" {% if filters.bank == 'scotiabank' %}selected{% endif %}>Scotiabank</option>
         <option value="bmo"        {% if filters.bank == 'bmo' %}selected{% endif %}>BMO</option>
       </select>
-    </label>
 
-    {% if available_account_types %}
-    <label>
-      Account Type
-      <select name="account_type">
+      {% if available_account_types %}
+      <select name="account_type" class="filter-chip{% if filters.account_type %} active{% endif %}" onchange="this.form.submit()">
         <option value="">All accounts</option>
         {% for at in available_account_types %}
         <option value="{{ at }}" {% if filters.account_type == at %}selected{% endif %}>{{ at }}</option>
         {% endfor %}
       </select>
-    </label>
-    {% endif %}
+      {% endif %}
 
-    <label>
-      Categories <small class="muted">(Ctrl/Cmd for multi)</small>
-      <select name="category_id" multiple size="5" class="multi-cat-select">
-        {% for cat in categories %}
-        <option value="{{ cat.id }}" {% if cat.id in filters.category_ids %}selected{% endif %}>
-          {{ cat.name }}
-        </option>
-        {% endfor %}
-      </select>
-    </label>
-
-    <div class="filter-actions">
-      <button type="submit">Filter</button>
-      <a href="/" role="button" class="secondary outline">Clear</a>
+      {% if has_filters %}
+      <a href="/" class="filter-chip clear-chip">× Clear</a>
+      {% endif %}
     </div>
-  </div>
-</form>
+
+    <div class="cat-filter-row">
+      {% for cat in categories %}
+      <label class="cat-filter-pill">
+        <input type="checkbox" name="category_id" value="{{ cat.id }}"
+               {% if cat.id in filters.category_ids %}checked{% endif %}
+               onchange="this.form.submit()" />
+        <span class="pill-label" style="background:{{ cat.color }}18; border-color:{{ cat.color }}; color:{{ cat.color }}">
+          {{ cat.name }}
+        </span>
+      </label>
+      {% endfor %}
+    </div>
+  </form>
+</div>
 
 {# ── Summary cards ── #}
 <div class="summary-cards">
   <div class="summary-card income">
     <span class="card-label">Income</span>
     <span class="card-value">+${{ "%.2f"|format(total_income) }}</span>
+    {% if income_delta is not none %}
+    <span class="card-delta {% if income_delta >= 0 %}delta-pos{% else %}delta-neg{% endif %}">
+      {{ '+' if income_delta >= 0 else '' }}${{ "%.2f"|format(income_delta) }} {{ delta_label }}
+    </span>
+    {% endif %}
   </div>
   <div class="summary-card expenses">
     <span class="card-label">Expenses</span>
     <span class="card-value">-${{ "%.2f"|format(total_expenses|abs) }}</span>
+    {% if expenses_delta is not none %}
+    <span class="card-delta {% if expenses_delta >= 0 %}delta-pos{% else %}delta-neg{% endif %}">
+      {{ '+' if expenses_delta >= 0 else '' }}${{ "%.2f"|format(expenses_delta) }} {{ delta_label }}
+    </span>
+    {% endif %}
   </div>
   <div class="summary-card net {% if net >= 0 %}net-pos{% else %}net-neg{% endif %}">
     <span class="card-label">Net</span>
     <span class="card-value">{{ '+' if net >= 0 else '' }}${{ "%.2f"|format(net) }}</span>
+    {% if net_delta is not none %}
+    <span class="card-delta {% if net_delta >= 0 %}delta-pos{% else %}delta-neg{% endif %}">
+      {{ '+' if net_delta >= 0 else '' }}${{ "%.2f"|format(net_delta) }} {{ delta_label }}
+    </span>
+    {% endif %}
   </div>
 </div>
 
