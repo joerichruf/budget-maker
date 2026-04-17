@@ -8,11 +8,24 @@
 </div>
 
 {# ── Filters ── #}
+{%- set filter_qs -%}
+  {%- if filters.month %}&month={{ filters.month }}{% endif -%}
+  {%- if filters.bank %}&bank={{ filters.bank }}{% endif -%}
+  {%- for cid in filters.category_ids %}&category_id={{ cid }}{% endfor -%}
+  {%- if filters.account_type %}&account_type={{ filters.account_type }}{% endif -%}
+{%- endset -%}
+
 <form method="get" action="/" class="filters-form">
   <div class="filter-row">
+
     <label>
       Month
-      <input type="month" name="month" value="{{ filters.month or '' }}" />
+      <select name="month">
+        <option value="">All months</option>
+        {% for m in available_months %}
+        <option value="{{ m.value }}" {% if filters.month == m.value %}selected{% endif %}>{{ m.display }}</option>
+        {% endfor %}
+      </select>
     </label>
 
     <label>
@@ -24,12 +37,23 @@
       </select>
     </label>
 
+    {% if available_account_types %}
     <label>
-      Category
-      <select name="category_id">
-        <option value="">All categories</option>
+      Account Type
+      <select name="account_type">
+        <option value="">All accounts</option>
+        {% for at in available_account_types %}
+        <option value="{{ at }}" {% if filters.account_type == at %}selected{% endif %}>{{ at }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    {% endif %}
+
+    <label>
+      Categories <small class="muted">(Ctrl/Cmd for multi)</small>
+      <select name="category_id" multiple size="5" class="multi-cat-select">
         {% for cat in categories %}
-        <option value="{{ cat.id }}" {% if filters.category_id == cat.id %}selected{% endif %}>
+        <option value="{{ cat.id }}" {% if cat.id in filters.category_ids %}selected{% endif %}>
           {{ cat.name }}
         </option>
         {% endfor %}
@@ -43,18 +67,49 @@
   </div>
 </form>
 
+{# ── Summary cards ── #}
+<div class="summary-cards">
+  <div class="summary-card income">
+    <span class="card-label">Income</span>
+    <span class="card-value">+${{ "%.2f"|format(total_income) }}</span>
+  </div>
+  <div class="summary-card expenses">
+    <span class="card-label">Expenses</span>
+    <span class="card-value">-${{ "%.2f"|format(total_expenses|abs) }}</span>
+  </div>
+  <div class="summary-card net {% if net >= 0 %}net-pos{% else %}net-neg{% endif %}">
+    <span class="card-label">Net</span>
+    <span class="card-value">{{ '+' if net >= 0 else '' }}${{ "%.2f"|format(net) }}</span>
+  </div>
+</div>
+
 {# ── Table ── #}
 {% if transactions %}
 <div class="table-wrapper">
   <table>
     <thead>
       <tr>
-        <th>Date</th>
+        <th>
+          {%- set next_date_ord = 'asc' if (sort == 'date' and order == 'desc') else 'desc' -%}
+          <a class="sort-link" href="?sort=date&order={{ next_date_ord }}{{ filter_qs }}">
+            Date{% if sort == 'date' %} {{ '↓' if order == 'desc' else '↑' }}{% endif %}
+          </a>
+        </th>
         <th>Description</th>
         <th>Bank</th>
-        <th class="amount-col">Amount (CAD)</th>
+        <th>
+          {%- set next_at_ord = 'asc' if (sort == 'account_type' and order == 'desc') else 'desc' -%}
+          <a class="sort-link" href="?sort=account_type&order={{ next_at_ord }}{{ filter_qs }}">
+            Account{% if sort == 'account_type' %} {{ '↓' if order == 'desc' else '↑' }}{% endif %}
+          </a>
+        </th>
+        <th class="amount-col">
+          {%- set next_amt_ord = 'asc' if (sort == 'amount' and order == 'desc') else 'desc' -%}
+          <a class="sort-link" href="?sort=amount&order={{ next_amt_ord }}{{ filter_qs }}">
+            Amount (CAD){% if sort == 'amount' %} {{ '↓' if order == 'desc' else '↑' }}{% endif %}
+          </a>
+        </th>
         <th>Category</th>
-        <th></th>
       </tr>
     </thead>
     <tbody>
@@ -68,32 +123,66 @@
           {% endif %}
         </td>
         <td><span class="bank-badge bank-{{ txn.bank }}">{{ txn.bank }}</span></td>
+        <td class="account-col">
+          {% if txn.account %}
+          <span class="account-type-badge">{{ txn.account.account_type }}</span>
+          {% if txn.account.account_number %}
+          <small class="muted">…{{ txn.account.account_number[-4:] }}</small>
+          {% endif %}
+          {% else %}—{% endif %}
+        </td>
         <td class="amount-col {% if txn.amount < 0 %}amount-neg{% else %}amount-pos{% endif %}">
           {{ "%.2f"|format(txn.amount) }}
         </td>
-        <td>
-          {% if txn.category %}
-          <span class="cat-badge" style="background:{{ txn.category.color }}20; border-color:{{ txn.category.color }}; color:{{ txn.category.color }}">
-            {{ txn.category.name }}
-          </span>
-          {% if txn.is_manual_category %}<span title="Manually set" class="manual-icon">✎</span>{% endif %}
-          {% else %}
-          <span class="cat-badge">—</span>
-          {% endif %}
-        </td>
-        <td>
-          <details class="inline-form">
-            <summary role="button" class="outline small-btn">Change</summary>
-            <form method="post" action="/transactions/{{ txn.id }}/category">
-              <select name="category_id" required>
-                {% for cat in categories %}
-                <option value="{{ cat.id }}" {% if txn.category_id == cat.id %}selected{% endif %}>
-                  {{ cat.name }}
-                </option>
-                {% endfor %}
-              </select>
-              <button type="submit">Save</button>
-            </form>
+        <td class="cat-cell">
+          <details class="cat-editor">
+            <summary class="cat-summary">
+              {% if txn.category %}
+              <span class="cat-badge" style="background:{{ txn.category.color }}18; border-color:{{ txn.category.color }}; color:{{ txn.category.color }}">
+                {{ txn.category.name }}
+              </span>
+              {% else %}
+              <span class="cat-badge cat-badge-empty">— set category</span>
+              {% endif %}
+              {% if txn.is_manual_category %}<span title="Manually set" class="manual-icon">✎</span>{% endif %}
+            </summary>
+            <div class="cat-editor-panel">
+              <p class="cat-desc-preview">"{{ txn.description[:60] }}"</p>
+              <form method="post" action="/transactions/{{ txn.id }}/category">
+
+                <label>
+                  Existing category
+                  <select name="category_id">
+                    {% for cat in categories %}
+                    <option value="{{ cat.id }}" {% if txn.category_id == cat.id %}selected{% endif %}>
+                      {{ cat.name }}
+                    </option>
+                    {% endfor %}
+                  </select>
+                </label>
+
+                <details class="new-cat-section">
+                  <summary>+ Create new category instead</summary>
+                  <div class="new-cat-fields">
+                    <label>
+                      Name
+                      <input type="text" name="new_category_name" placeholder="e.g. Learning" />
+                    </label>
+                    <label class="color-label">
+                      Color
+                      <input type="color" name="new_category_color" value="#9C27B0" />
+                    </label>
+                  </div>
+                </details>
+
+                <label class="apply-all-label">
+                  <input type="checkbox" name="apply_to_all" value="true" />
+                  Apply to all matching transactions &amp; add rule for future imports
+                </label>
+
+                <button type="submit" class="save-cat-btn">Save</button>
+              </form>
+            </div>
           </details>
         </td>
       </tr>
@@ -104,14 +193,14 @@
 
 {# ── Pagination ── #}
 {% if total_pages > 1 %}
+{%- set sort_qs = '&sort=' ~ sort ~ '&order=' ~ order -%}
 <nav class="pagination">
-  {% set qs %}{% if filters.month %}&month={{ filters.month }}{% endif %}{% if filters.bank %}&bank={{ filters.bank }}{% endif %}{% if filters.category_id %}&category_id={{ filters.category_id }}{% endif %}{% endset %}
   {% if page > 1 %}
-  <a href="?page={{ page - 1 }}{{ qs }}">&larr; Prev</a>
+  <a href="?page={{ page - 1 }}{{ filter_qs }}{{ sort_qs }}">&larr; Prev</a>
   {% endif %}
   <span>Page {{ page }} of {{ total_pages }}</span>
   {% if page < total_pages %}
-  <a href="?page={{ page + 1 }}{{ qs }}">Next &rarr;</a>
+  <a href="?page={{ page + 1 }}{{ filter_qs }}{{ sort_qs }}">Next &rarr;</a>
   {% endif %}
 </nav>
 {% endif %}

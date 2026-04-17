@@ -11,7 +11,12 @@
   <div class="filter-row">
     <label>
       Month
-      <input type="month" name="month" value="{{ month or '' }}" />
+      <select name="month">
+        <option value="">All months</option>
+        {% for m in available_months %}
+        <option value="{{ m.value }}" {% if month == m.value %}selected{% endif %}>{{ m.display }}</option>
+        {% endfor %}
+      </select>
     </label>
     <div class="filter-actions">
       <button type="submit">Filter</button>
@@ -36,20 +41,31 @@
   </div>
 </div>
 
-{# ── Pie chart ── #}
+{# ── Charts ── #}
 {% if has_data %}
-<div class="chart-wrapper">
-  <h3>Spending by Category{% if month %} — {{ month }}{% endif %}</h3>
-  <div class="chart-container">
+<div class="chart-section">
+  <div class="chart-header">
+    <h3>Spending by Category{% if month %} — {{ month }}{% endif %}</h3>
+    <button id="toggleChart" class="outline secondary" type="button">Show Histogram</button>
+  </div>
+
+  <div id="pieContainer" class="chart-container">
     <canvas id="expenseChart"></canvas>
+  </div>
+
+  <div id="histContainer" class="chart-container" style="display:none">
+    <canvas id="histChart"></canvas>
   </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2/dist/chartjs-plugin-datalabels.min.js"></script>
 <script>
   const labels = {{ chart_labels | safe }};
   const values = {{ chart_values | safe }};
   const colors = {{ chart_colors | safe }};
+
+  Chart.register(ChartDataLabels);
 
   new Chart(document.getElementById('expenseChart'), {
     type: 'doughnut',
@@ -57,7 +73,7 @@
       labels: labels,
       datasets: [{
         data: values,
-        backgroundColor: colors.map(c => c + '99'),  // 60% opacity fill
+        backgroundColor: colors.map(c => c + '99'),
         borderColor: colors,
         borderWidth: 2,
       }]
@@ -66,9 +82,7 @@
       responsive: true,
       maintainAspectRatio: true,
       plugins: {
-        legend: {
-          position: 'right',
-        },
+        legend: { position: 'right' },
         tooltip: {
           callbacks: {
             label: (ctx) => {
@@ -77,9 +91,69 @@
               return ` ${ctx.label}: $${ctx.parsed.toFixed(2)} (${pct}%)`;
             }
           }
+        },
+        datalabels: {
+          formatter: (value, ctx) => {
+            const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+            const pct = (value / total) * 100;
+            if (pct < 5) return '';
+            return ctx.chart.data.labels[ctx.dataIndex] + '\n' + pct.toFixed(1) + '%';
+          },
+          color: '#fff',
+          font: { size: 11, weight: 'bold' },
+          textAlign: 'center',
         }
       }
     }
+  });
+
+  const histLabels = {{ histogram_labels | safe }};
+  const histIncome = {{ histogram_income | safe }};
+  const histExpenses = {{ histogram_expenses | safe }};
+
+  new Chart(document.getElementById('histChart'), {
+    type: 'bar',
+    data: {
+      labels: histLabels,
+      datasets: [
+        {
+          label: 'Income',
+          data: histIncome,
+          backgroundColor: '#43a04799',
+          borderColor: '#43a047',
+          borderWidth: 1,
+        },
+        {
+          label: 'Expenses',
+          data: histExpenses,
+          backgroundColor: '#e5393599',
+          borderColor: '#e53935',
+          borderWidth: 1,
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        datalabels: { display: false },
+        legend: { position: 'top' },
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: { callback: (v) => '$' + v.toLocaleString() }
+        }
+      }
+    }
+  });
+
+  document.getElementById('toggleChart').addEventListener('click', function () {
+    const pie = document.getElementById('pieContainer');
+    const hist = document.getElementById('histContainer');
+    const showing = pie.style.display !== 'none';
+    pie.style.display = showing ? 'none' : 'block';
+    hist.style.display = showing ? 'block' : 'none';
+    this.textContent = showing ? 'Show Pie Chart' : 'Show Histogram';
   });
 </script>
 {% else %}
