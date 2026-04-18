@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from app.models import CategorizationRule, Category
+from app.models import Account, CategorizationRule, Category
 
 CATEGORIES: list[dict] = [
     {"name": "Groceries", "color": "#4CAF50", "is_income": False},
@@ -199,5 +199,10 @@ def seed(db: Session) -> None:
                     pattern=pattern, category_id=cat_id, priority=priority
                 )
             )
+
+    # Fix account type for account ending in 6845 (credit card, not checking)
+    acct = db.query(Account).filter(Account.account_number.like("%6845")).first()
+    if acct and acct.account_type != "CREDITCARD":
+        acct.account_type = "CREDITCARD"
 
     db.commit()
