@@ -25,7 +25,7 @@ def account(db):
 
 
 def _add_monthly(db, account, cat, desc, amount, start_date, n=3):
-    """Add n monthly transactions starting from start_date."""
+    """Add n monthly transactions on the same day of month."""
     for i in range(n):
         db.add(
             Transaction(
@@ -63,6 +63,28 @@ def test_subscriptions_detects_monthly(client, db, account):
     assert "17.99" in resp.text
 
 
+def test_subscriptions_shows_billing_day(client, db, account):
+    cat = db.query(Category).filter_by(name="Entertainment").first()
+    start = date(date.today().year - 1, 3, 15)
+    _add_monthly(db, account, cat, "SPOTIFY.COM", -10.99, start, n=4)
+
+    resp = client.get("/subscriptions")
+    assert resp.status_code == 200
+    assert "of month" in resp.text
+
+
+def test_subscriptions_shows_next_charge(client, db, account):
+    cat = db.query(Category).filter_by(name="Entertainment").first()
+    today = date.today()
+    # last charge is recent (today - 30d), so next_charge is shown
+    start = today - timedelta(days=90)
+    _add_monthly(db, account, cat, "HULU.COM", -15.99, start, n=4)
+
+    resp = client.get("/subscriptions")
+    assert resp.status_code == 200
+    assert str(today.year) in resp.text
+
+
 def test_subscriptions_totals_shown(client, db, account):
     cat = db.query(Category).filter_by(name="Entertainment").first()
     today = date.today()
@@ -77,7 +99,6 @@ def test_subscriptions_totals_shown(client, db, account):
 
 def test_subscriptions_forgotten_flag(client, db, account):
     cat = db.query(Category).filter_by(name="Entertainment").first()
-    # Last charge was >60 days ago
     old_start = date.today() - timedelta(days=150)
     _add_monthly(db, account, cat, "OLD.SERVICE", -9.99, old_start, n=3)
 
@@ -88,7 +109,6 @@ def test_subscriptions_forgotten_flag(client, db, account):
 
 def test_subscriptions_active_recent(client, db, account):
     cat = db.query(Category).filter_by(name="Entertainment").first()
-    # Last charge within 60 days
     start = date.today() - timedelta(days=62)
     _add_monthly(db, account, cat, "SPOTIFY.COM", -10.99, start, n=3)
 
@@ -97,9 +117,8 @@ def test_subscriptions_active_recent(client, db, account):
     assert "Active" in resp.text
 
 
-def test_subscriptions_skips_irregular(db, account):
+def test_subscriptions_skips_irregular_gaps(db, account):
     cat = db.query(Category).filter_by(name="Groceries").first()
-    # Irregular gaps — should not be detected
     for i, gap in enumerate([5, 15, 3, 7]):
         db.add(
             Transaction(
@@ -114,18 +133,18 @@ def test_subscriptions_skips_irregular(db, account):
         )
     db.commit()
     subs = detect_subscriptions(db)
-    names = [s["display_name"].upper() for s in subs]
+    names = [s["display_name"] for s in subs]
     assert "RANDOM STORE" not in names
 
 
-def test_subscriptions_skips_high_variance(db, account):
+def test_subscriptions_skips_different_prices(db, account):
+    """Transactions at different prices must not be flagged as subscriptions."""
     cat = db.query(Category).filter_by(name="Groceries").first()
-    # Monthly cadence but wildly varying amounts (CV > 0.3)
-    amounts = [-10.0, -100.0, -5.0, -80.0]
+    amounts = [-10.00, -10.50, -10.00, -10.50]
     for i, amt in enumerate(amounts):
         db.add(
             Transaction(
-                fitid=f"HIVAR-{i}",
+                fitid=f"PRICE-{i}",
                 bank="scotiabank",
                 account_id=account.id,
                 date=date.today() - timedelta(days=30 * (len(amounts) - i)),
@@ -136,5 +155,33 @@ def test_subscriptions_skips_high_variance(db, account):
         )
     db.commit()
     subs = detect_subscriptions(db)
-    names = [s["display_name"].upper() for s in subs]
+    names = [s["display_name"] for s in subs]
     assert "VARIABLE CHARGE" not in names
+
+
+def test_subscriptions_skips_inconsistent_day(db, account):
+    """Transactions on wildly different days of month must not be flagged."""
+    cat = db.query(Category).filter_by(name="Groceries").first()
+    # Days: 1st, 15th, 28th — spread > 3
+    days = [1, 15, 28]
+    today = date.today()
+    for i, d in enumerate(days):
+        try:
+            charge_date = date(today.year - 1, i + 1, d)
+        except ValueError:
+            charge_date = date(today.year - 1, i + 1, 1)
+        db.add(
+            Transaction(
+                fitid=f"DAYVARY-{i}",
+                bank="scotiabank",
+                account_id=account.id,
+                date=charge_date,
+                amount=-9.99,
+                description="SCATTERED CHARGE",
+                category_id=cat.id,
+            )
+        )
+    db.commit()
+    subs = detect_subscriptions(db)
+    names = [s["display_name"] for s in subs]
+    assert "SCATTERED CHARGE" not in names
