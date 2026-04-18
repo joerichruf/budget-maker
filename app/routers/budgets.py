@@ -35,6 +35,54 @@ def _trend(spent: float, day_of_month: int, days_in_month: int) -> float:
     return round((spent / day_of_month) * days_in_month, 2)
 
 
+def _three_month_avg(db: Session) -> dict[int, float]:
+    """Average monthly spending per category over the last 3 complete months."""
+    today = date.today()
+    first_of_month = date(today.year, today.month, 1)
+
+    months = (
+        db.query(
+            extract("year", Transaction.date).label("year"),
+            extract("month", Transaction.date).label("month"),
+        )
+        .filter(Transaction.amount < 0, Transaction.date < first_of_month)
+        .distinct()
+        .order_by(
+            extract("year", Transaction.date).desc(),
+            extract("month", Transaction.date).desc(),
+        )
+        .limit(3)
+        .all()
+    )
+
+    if not months:
+        return {}
+
+    totals: dict[int, float] = {}
+    for m in months:
+        rows = (
+            db.query(
+                Transaction.category_id,
+                func.sum(Transaction.amount).label("total"),
+            )
+            .filter(
+                Transaction.amount < 0,
+                extract("year", Transaction.date) == m.year,
+                extract("month", Transaction.date) == m.month,
+            )
+            .group_by(Transaction.category_id)
+            .all()
+        )
+        for r in rows:
+            if r.category_id:
+                totals[r.category_id] = totals.get(r.category_id, 0.0) + abs(
+                    float(r.total)
+                )
+
+    n = len(months)
+    return {k: round(v / n, 2) for k, v in totals.items()}
+
+
 @router.get("/budgets", response_class=HTMLResponse)
 def budgets_page(request: Request, db: Session = Depends(get_db)):
     today = date.today()
@@ -75,12 +123,25 @@ def budgets_page(request: Request, db: Session = Depends(get_db)):
         .all()
     )
 
+    # Autopilot: suggest budgets for categories with spending but no budget yet
+    budgeted_ids = {b.category_id for b in budgets}
+    avg_spending = _three_month_avg(db)
+    suggestions = [
+        {"category": cat, "suggested_limit": avg_spending[cat.id]}
+        for cat in categories
+        if cat.id in avg_spending
+        and cat.id not in budgeted_ids
+        and avg_spending[cat.id] > 0
+    ]
+    suggestions.sort(key=lambda s: s["suggested_limit"], reverse=True)
+
     return templates.TemplateResponse(
         request,
         "budgets.html",
         {
             "budget_rows": budget_rows,
             "categories": categories,
+            "suggestions": suggestions,
             "today": today,
             "days_in_month": days_in_month,
         },
@@ -99,6 +160,25 @@ def set_budget(
         existing.monthly_limit = monthly_limit
     else:
         db.add(CategoryBudget(category_id=category_id, monthly_limit=monthly_limit))
+    db.commit()
+    return RedirectResponse(
+        url=request.headers.get("referer", "/budgets"), status_code=303
+    )
+
+
+@router.post("/budgets/accept-suggestions")
+def accept_suggestions(
+    request: Request,
+    category_ids: list[int] = Form(default=[]),
+    monthly_limits: list[float] = Form(default=[]),
+    db: Session = Depends(get_db),
+):
+    for cat_id, limit in zip(category_ids, monthly_limits):
+        existing = db.query(CategoryBudget).filter_by(category_id=cat_id).first()
+        if existing:
+            existing.monthly_limit = limit
+        else:
+            db.add(CategoryBudget(category_id=cat_id, monthly_limit=limit))
     db.commit()
     return RedirectResponse(
         url=request.headers.get("referer", "/budgets"), status_code=303
