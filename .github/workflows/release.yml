@@ -1,0 +1,14 @@
+# Retired — release logic (Docker push + git tag + GitHub Release) is now
+# handled by the `docker` job in ci.yml.
+#
+# This file is kept as a manual escape hatch only.
+name: Release (manual)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  noop:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Release is automated via ci.yml on every push to main."

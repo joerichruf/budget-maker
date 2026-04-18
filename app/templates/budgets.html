@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Budgets — Budget Maker{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>Monthly Budgets</h2>
+</div>
+
+<p class="muted" style="margin-bottom:1.5rem;font-size:0.875rem">
+  {{ today.strftime('%B %Y') }} — day {{ today.day }} of {{ days_in_month }}
+</p>
+
+{# ── Budget cards ── #}
+{% if budget_rows %}
+<div class="budget-grid">
+  {% for row in budget_rows %}
+  {% set b = row.budget %}
+  <article class="budget-card {% if row.over %}budget-over{% elif row.trend_over %}budget-trend-warn{% else %}budget-ok{% endif %}">
+    <div class="budget-card-header">
+      <span class="cat-badge" style="background:{{ b.category.color }}18; border-color:{{ b.category.color }}; color:{{ b.category.color }}">
+        {{ b.category.name }}
+      </span>
+      <form method="post" action="/budgets/{{ b.id }}/delete" style="margin:0">
+        <button type="submit" class="danger-btn outline" style="padding:2px 8px;font-size:0.7rem">✕</button>
+      </form>
+    </div>
+
+    <div class="budget-amounts">
+      <div class="budget-stat">
+        <span class="stat-label">Spent</span>
+        <span class="stat-value {% if row.over %}amount-neg{% endif %}">${{ "%.2f"|format(row.spent) }}</span>
+      </div>
+      <div class="budget-stat">
+        <span class="stat-label">Budget</span>
+        <span class="stat-value">${{ "%.2f"|format(b.monthly_limit) }}</span>
+      </div>
+      <div class="budget-stat">
+        <span class="stat-label">{% if row.over %}Over{% else %}Left{% endif %}</span>
+        <span class="stat-value {% if row.over %}amount-neg{% else %}amount-pos{% endif %}">
+          {% if row.over %}-{% endif %}${{ "%.2f"|format(row.remaining|abs) }}
+        </span>
+      </div>
+    </div>
+
+    {# Progress bar #}
+    <div class="budget-bar-track">
+      <div class="budget-bar-fill {% if row.over %}budget-bar-over{% elif row.trend_over %}budget-bar-warn{% endif %}"
+           style="width:{{ row.pct }}%"></div>
+    </div>
+    <div class="budget-bar-labels">
+      <span>{{ row.pct }}% used</span>
+      <span class="{% if row.trend_over %}amount-neg{% else %}muted{% endif %}" style="font-size:0.75rem">
+        Projected: ${{ "%.2f"|format(row.projected) }}{% if row.trend_over %} ⚠ over{% endif %}
+      </span>
+    </div>
+
+    {# Inline edit #}
+    <details class="add-form-section" style="margin-top:0.75rem">
+      <summary style="font-size:0.8rem;color:var(--pico-primary,#1a73e8)">Edit limit</summary>
+      <form method="post" action="/budgets/set" style="margin-top:0.5rem;display:flex;gap:0.5rem;align-items:flex-end">
+        <input type="hidden" name="category_id" value="{{ b.category_id }}" />
+        <label style="flex:1;margin:0">
+          <input type="number" name="monthly_limit" value="{{ b.monthly_limit }}"
+                 min="1" step="0.01" style="margin:0" />
+        </label>
+        <button type="submit" class="small-btn" style="margin:0">Save</button>
+      </form>
+    </details>
+  </article>
+  {% endfor %}
+</div>
+{% else %}
+<article>
+  <p>No budgets set yet. Add one below to start tracking.</p>
+</article>
+{% endif %}
+
+{# ── Add budget form ── #}
+<details class="add-form-section">
+  <summary role="button" class="outline small-btn">+ Add budget</summary>
+  <div class="add-form">
+    <form method="post" action="/budgets/set">
+      <div class="form-row">
+        <label style="flex:2 1 200px">
+          Category
+          <select name="category_id" required>
+            {% for cat in categories %}
+            <option value="{{ cat.id }}"
+                    {% if cat.budget %}disabled{% endif %}>
+              {{ cat.name }}{% if cat.budget %} (already set){% endif %}
+            </option>
+            {% endfor %}
+          </select>
+        </label>
+        <label style="flex:1 1 140px">
+          Monthly limit ($)
+          <input type="number" name="monthly_limit" min="1" step="0.01"
+                 placeholder="500.00" required />
+        </label>
+        <div style="align-self:flex-end">
+          <button type="submit" style="margin:0">Set budget</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</details>
+{% endblock %}
