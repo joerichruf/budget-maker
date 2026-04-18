@@ -33,12 +33,11 @@ Available categories (choose ONLY from this list):
 - Travel
 - Financial
 - Income
-- Other
 
 Rules:
 1. Return ONLY a JSON object mapping each description to a category name.
 2. Use exactly the category names listed above.
-3. When unsure, use "Other".
+3. When genuinely unsure, omit the entry entirely — do not guess.
 4. Do not add any explanation outside the JSON.
 
 Example input:
