@@ -185,15 +185,21 @@ async function submitRow(idx) {
 }
 
 async function acceptAll() {
-  // Build payload from AI suggestions — use suggestion name directly
   const payload = {};
   document.querySelectorAll('#review-table tbody tr').forEach(row => {
     const desc = row.dataset.desc;
     if (!desc) return;
     const idx = row.id.replace('row-', '');
+    // For rows with AI suggestions that the user hasn't manually changed,
+    // use the suggestion name directly — don't rely on the select reflecting it,
+    // since loadSuggestions() only pre-fills the select when the name is in CAT_MAP.
+    if (suggestions[desc] && !edited.has(parseInt(idx))) {
+      payload[desc] = suggestions[desc];
+      return;
+    }
+    // For manually-edited rows, use the select's current text value.
     const sel = document.getElementById('sel-' + idx);
     if (!sel) return;
-    // Use the visible text of the selected option as the category name
     const catName = sel.options[sel.selectedIndex].text.trim();
     if (catName && catName !== 'Other') {
       payload[desc] = catName;
