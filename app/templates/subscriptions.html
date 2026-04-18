@@ -30,7 +30,9 @@
         <th>Cadence</th>
         <th>Occurrences</th>
         <th>Last charge</th>
-        <th class="amount-col">Avg charge</th>
+        <th>Bills on</th>
+        <th>Next charge</th>
+        <th class="amount-col">Amount</th>
         <th class="amount-col">/ month</th>
         <th class="amount-col">/ year</th>
         <th>Category</th>
@@ -46,7 +48,11 @@
         </td>
         <td class="amount-col muted">{{ s.count }}×</td>
         <td class="nowrap muted">{{ s.last_charge }}</td>
-        <td class="amount-col amount-neg">-${{ "%.2f"|format(s.avg_amount) }}</td>
+        <td class="nowrap muted">{{ s.billing_day_label }}{% if s.cadence == "monthly" %} of month{% endif %}</td>
+        <td class="nowrap {% if not s.forgotten %}amount-pos{% else %}muted{% endif %}">
+          {% if not s.forgotten %}{{ s.next_charge }}{% else %}—{% endif %}
+        </td>
+        <td class="amount-col amount-neg">-${{ "%.2f"|format(s.amount) }}</td>
         <td class="amount-col amount-neg">-${{ "%.2f"|format(s.monthly_cost) }}</td>
         <td class="amount-col muted">-${{ "%.2f"|format(s.annual_cost) }}</td>
         <td>
@@ -74,13 +80,14 @@
 </div>
 
 <p class="muted" style="margin-top:1rem;font-size:0.8rem">
-  Detected from transactions with consistent amount (CV &lt; 30%) and monthly (25–40 day) or annual (330–400 day) cadence.
+  Detected from transactions with the exact same price and billing day (±3 days) repeating on a
+  monthly (25–40 day) or annual (330–400 day) cadence.
   "Forgotten" = no charge in over 60 days.
 </p>
 
 {% else %}
 <article>
-  <p>No recurring subscriptions detected yet. <a href="/import">Import transactions</a> to get started — subscriptions become visible once a charge appears at least twice.</p>
+  <p>No recurring subscriptions detected yet. <a href="/import">Import transactions</a> to get started — subscriptions become visible once a charge appears at least twice at the same price and date.</p>
 </article>
 {% endif %}
 {% endblock %}

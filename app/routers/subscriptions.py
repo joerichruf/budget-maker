@@ -1,7 +1,6 @@
-import re
 import statistics
 from collections import defaultdict
-from datetime import date
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
@@ -14,11 +13,18 @@ from app.models import Transaction
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 
-_TRAILING_STORE = re.compile(r"\s*#\d+\s*$")
+
+def _day_spread(days: list[int]) -> int:
+    """Minimum circular span of day-of-month values in a 31-day cycle."""
+    lo, hi = min(days), max(days)
+    return min(hi - lo, 31 - hi + lo)
 
 
-def _normalize(desc: str) -> str:
-    return _TRAILING_STORE.sub("", desc).strip()
+def _ordinal(n: int) -> str:
+    suffix = {1: "st", 2: "nd", 3: "rd"}.get(
+        n % 10 if n % 100 not in (11, 12, 13) else 0, "th"
+    )
+    return f"{n}{suffix}"
 
 
 def detect_subscriptions(db: Session) -> list[dict]:
@@ -32,8 +38,7 @@ def detect_subscriptions(db: Session) -> list[dict]:
 
     grouped: dict[str, list] = defaultdict(list)
     for t in txns:
-        key = _normalize(t.description).upper()
-        grouped[key].append(t)
+        grouped[t.description].append(t)
 
     today = date.today()
     subscriptions = []
@@ -42,41 +47,63 @@ def detect_subscriptions(db: Session) -> list[dict]:
         if len(group) < 2:
             continue
 
+        amounts = [abs(t.amount) for t in group]
+        if max(amounts) - min(amounts) > 0.01:
+            continue
+
         dates = sorted(t.date for t in group)
+        dom = [d.day for d in dates]
+        if _day_spread(dom) > 3:
+            continue
+
         gaps = [(dates[i + 1] - dates[i]).days for i in range(len(dates) - 1)]
         avg_gap = statistics.mean(gaps)
 
-        amounts = [abs(t.amount) for t in group]
-        mean_amt = statistics.mean(amounts)
-        if mean_amt > 0 and len(amounts) >= 2:
-            cv = statistics.stdev(amounts) / mean_amt
-            if cv > 0.3:
-                continue
-
+        amount = amounts[0]
         if 25 <= avg_gap <= 40:
             cadence = "monthly"
-            monthly_cost = mean_amt
+            monthly_cost = amount
         elif 330 <= avg_gap <= 400:
             cadence = "annual"
-            monthly_cost = mean_amt / 12
+            monthly_cost = amount / 12
         else:
             continue
 
-        last_txn = max(group, key=lambda t: t.date)
-        days_since = (today - last_txn.date).days
+        billing_day = round(statistics.mean(dom))
+        last_date = dates[-1]
+        days_since = (today - last_date).days
 
+        # Estimate next charge date
+        if cadence == "monthly":
+            year, month = today.year, today.month
+            if today.day > billing_day:
+                month += 1
+                if month > 12:
+                    month, year = 1, year + 1
+            try:
+                next_charge = date(year, month, billing_day)
+            except ValueError:
+                # billing_day doesn't exist in that month (e.g. 31st in April)
+                next_charge = date(year, month, 1) + timedelta(days=billing_day - 1)
+        else:
+            next_charge = last_date.replace(year=last_date.year + 1)
+
+        last_txn = max(group, key=lambda t: t.date)
         subscriptions.append(
             {
-                "display_name": _normalize(last_txn.description) or key,
+                "display_name": last_txn.description,
                 "cadence": cadence,
                 "count": len(group),
-                "last_charge": last_txn.date,
+                "last_charge": last_date,
                 "days_since": days_since,
-                "avg_amount": round(mean_amt, 2),
+                "amount": round(amount, 2),
                 "monthly_cost": round(monthly_cost, 2),
                 "annual_cost": round(monthly_cost * 12, 2),
                 "forgotten": days_since > 60,
                 "category": last_txn.category,
+                "billing_day": billing_day,
+                "billing_day_label": _ordinal(billing_day),
+                "next_charge": next_charge,
             }
         )
 

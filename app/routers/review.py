@@ -112,6 +112,36 @@ def apply_single(
     return RedirectResponse(url="/review", status_code=303)
 
 
+@router.post("/review/categories")
+def create_category(
+    request: Request,
+    name: str = Form(...),
+    color: str = Form(default="#9E9E9E"),
+    db: Session = Depends(get_db),
+):
+    """Create a new category inline from the review page."""
+    from app.models import Category as Cat
+
+    existing = db.query(Cat).filter(Cat.name == name).first()
+    if existing:
+        return JSONResponse(
+            {
+                "ok": False,
+                "error": "Category already exists",
+                "id": existing.id,
+                "name": existing.name,
+                "color": existing.color,
+            }
+        )
+    cat = Cat(name=name, color=color)
+    db.add(cat)
+    db.commit()
+    db.refresh(cat)
+    return JSONResponse(
+        {"ok": True, "id": cat.id, "name": cat.name, "color": cat.color}
+    )
+
+
 @router.post("/review/apply-batch")
 async def apply_batch(request: Request, db: Session = Depends(get_db)):
     """Accept a JSON body {description: category_name} and apply all at once."""

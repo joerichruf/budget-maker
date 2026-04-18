@@ -86,7 +86,7 @@ jobs:
       - name: Compute version and tags
         id: meta
         env:
-          REGISTRY: ghcr.io/${{ github.repository }}
+          REGISTRY: ${{ secrets.DOCKERHUB_USERNAME }}/budget-maker
           EVENT: ${{ github.event_name }}
           # head_ref is the source branch on PRs; ref_name is the branch on pushes
           BRANCH_RAW: ${{ github.event_name == 'pull_request' && github.head_ref || github.ref_name }}
@@ -125,13 +125,13 @@ jobs:
         id: comment
         uses: actions/github-script@v7
         env:
-          IMAGE_TAG: ${{ steps.meta.outputs.image_tag }}
+          VERSION: ${{ steps.meta.outputs.base }}
         with:
           result-encoding: string
           script: |
             const { owner, repo } = context.repo;
             const prNumber = context.issue.number;
-            const imageTag = process.env.IMAGE_TAG;
+            const version = process.env.VERSION;
             const sha = context.sha.slice(0, 7);
 
             // ── Update PR title: strip old version prefix, prepend new one ──
@@ -140,7 +140,7 @@ jobs:
             await github.rest.pulls.update({
               owner, repo,
               pull_number: prNumber,
-              title: `[v${imageTag}] ${cleanTitle}`,
+              title: `[v${version}] ${cleanTitle}`,
             });
 
             // ── Find or create the sticky build comment ──
@@ -155,7 +155,7 @@ jobs:
               '| | |',
               '|---|---|',
               `| **Status** | ⏳ Queued |`,
-              `| **Version** | \`${imageTag}\` |`,
+              `| **Version** | \`${version}\` |`,
               `| **Commit**  | \`${sha}\` |`,
             ].join('\n');
 
@@ -167,12 +167,11 @@ jobs:
             return String(data.id);
 
       # ── Build & push ─────────────────────────────────────────────────────
-      - name: Log in to GHCR
+      - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -182,7 +181,7 @@ jobs:
         uses: actions/github-script@v7
         env:
           COMMENT_ID: ${{ steps.comment.outputs.result }}
-          IMAGE_TAG: ${{ steps.meta.outputs.image_tag }}
+          VERSION: ${{ steps.meta.outputs.base }}
         with:
           script: |
             await github.rest.issues.updateComment({
@@ -194,7 +193,7 @@ jobs:
                 '| | |',
                 '|---|---|',
                 `| **Status** | 🔨 Building |`,
-                `| **Version** | \`${process.env.IMAGE_TAG}\` |`,
+                `| **Version** | \`${process.env.VERSION}\` |`,
                 `| **Commit**  | \`${context.sha.slice(0, 7)}\` |`,
               ].join('\n'),
             });
@@ -214,7 +213,7 @@ jobs:
         uses: actions/github-script@v7
         env:
           COMMENT_ID: ${{ steps.comment.outputs.result }}
-          IMAGE_TAG: ${{ steps.meta.outputs.image_tag }}
+          VERSION: ${{ steps.meta.outputs.base }}
         with:
           script: |
             await github.rest.issues.updateComment({
@@ -226,7 +225,7 @@ jobs:
                 '| | |',
                 '|---|---|',
                 `| **Status** | 📦 Built — pushing... |`,
-                `| **Version** | \`${process.env.IMAGE_TAG}\` |`,
+                `| **Version** | \`${process.env.VERSION}\` |`,
                 `| **Commit**  | \`${context.sha.slice(0, 7)}\` |`,
               ].join('\n'),
             });
@@ -241,8 +240,9 @@ jobs:
         uses: actions/github-script@v7
         env:
           COMMENT_ID: ${{ steps.comment.outputs.result }}
-          IMAGE_TAG: ${{ steps.meta.outputs.image_tag }}
+          VERSION: ${{ steps.meta.outputs.base }}
           FULL_IMAGE: ${{ steps.meta.outputs.full_image }}
+          IMAGE_TAG: ${{ steps.meta.outputs.image_tag }}
         with:
           script: |
             await github.rest.issues.updateComment({
@@ -254,7 +254,8 @@ jobs:
                 '| | |',
                 '|---|---|',
                 `| **Status** | ✅ Pushed |`,
-                `| **Version** | \`${process.env.IMAGE_TAG}\` |`,
+                `| **Version** | \`${process.env.VERSION}\` |`,
+                `| **Image**   | \`${process.env.IMAGE_TAG}\` |`,
                 `| **Commit**  | \`${context.sha.slice(0, 7)}\` |`,
                 '',
                 '```bash',
@@ -269,7 +270,7 @@ jobs:
         uses: actions/github-script@v7
         env:
           COMMENT_ID: ${{ steps.comment.outputs.result }}
-          IMAGE_TAG: ${{ steps.meta.outputs.image_tag }}
+          VERSION: ${{ steps.meta.outputs.base }}
         with:
           script: |
             if (!process.env.COMMENT_ID) return;
@@ -282,7 +283,7 @@ jobs:
                 '| | |',
                 '|---|---|',
                 `| **Status** | ❌ Failed — [view run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |`,
-                `| **Version** | \`${process.env.IMAGE_TAG}\` |`,
+                `| **Version** | \`${process.env.VERSION}\` |`,
                 `| **Commit**  | \`${context.sha.slice(0, 7)}\` |`,
               ].join('\n'),
             });

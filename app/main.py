@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from app.database import SessionLocal, engine
+from app.database import SessionLocal, engine, ensure_db_dir
 from app.models import Base
 from app.routers import (
     budgets,
@@ -16,6 +16,9 @@ from app.routers import (
 from app.seed import seed
 
 app = FastAPI(title="Budget Maker")
+
+# Ensure DB directory exists (matters when /data is a mounted volume)
+ensure_db_dir()
 
 # Create tables on startup
 Base.metadata.create_all(bind=engine)
