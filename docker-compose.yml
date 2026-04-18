@@ -6,9 +6,10 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ./data:/data
-    environment:
-      DATABASE_URL: sqlite:////data/budget.db
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8080 --log-level debug
+      - budget_data:/data
+    env_file:
+      - .env
     restart: unless-stopped
+
+volumes:
+  budget_data:
