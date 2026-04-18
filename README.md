@@ -161,9 +161,64 @@ If auto-detection fails, select the bank manually in the import form.
 
 ---
 
-## Phases
+## Current features
 
-- **Phase 1** ✅ — QFX import, dedup, auto-categorize, transaction list UI
-- **Phase 2** — Category rule management UI (add/edit/delete keyword rules)
-- **Phase 3** — Dashboard with spending graphs by category and month
-- **Phase 4** — Drag-and-drop import, CSV export
+| Feature | Description |
+|---|---|
+| **QFX Import** | Upload Scotiabank & BMO QFX files; duplicates are skipped automatically |
+| **Auto-categorize** | 134 keyword rules map merchants to categories on import |
+| **Manual override** | Click any category badge in the table to reassign; optionally apply to all matching transactions |
+| **AI Review** | "Ask Claude" button suggests categories for uncategorized transactions in bulk |
+| **Dashboard** | Doughnut + histogram charts for spending by category; filter by month |
+| **Insights** | Monthly net balance chart, top recurring expenses, top categories, high-variance & spike detection |
+| **Budgets** | Set monthly limits per category; progress bars with over-budget and projected-over warnings |
+| **Goals** | Payoff & savings goals evaluated against your trailing 3-month average surplus |
+| **Account Balances** | Manual balance entries for net-worth tracking |
+| **Dark mode** | Sun/moon toggle, persisted to `localStorage` |
+
+---
+
+## Roadmap — features to build
+
+### Tier 1 — Zero-effort, maximum signal
+
+**Subscription Radar**
+Auto-detect recurring charges (same merchant, similar amount, monthly/annual cadence). One screen listing all subscriptions with their total cost. Flag ones with no transaction in 60+ days as "forgotten."
+
+**Spending Forecast & Budget Autopilot**
+Auto-suggest budget limits from trailing 3-month averages — one click to accept. Mid-month projection bar: "at this pace you'll overspend Dining by $80."
+
+**Month-End Digest**
+Auto-generated weekly summary delivered by email or push: biggest change vs last month, categories trending up, net surplus/deficit. No user action required.
+
+---
+
+### Tier 2 — Smart lazy features
+
+**Natural Language Query**
+A search box that understands plain English: "how much on food last summer" or "biggest single transaction this year." Backed by the existing Claude integration.
+
+**Emergency Fund Runway**
+One prominent number on the dashboard: "You have 2.4 months of expenses saved." Derived from the balance tracker and average monthly spend.
+
+**Cash Flow Calendar**
+Visual monthly calendar overlaying income days against expected bill days. Answers "will I go negative before my next paycheque?" — the core anxiety for lazy budgeters.
+
+**Duplicate Charge Detector**
+Surface transactions with the same merchant and a similar amount in the same billing window. "You may have been charged twice by Netflix."
+
+---
+
+### Tier 3 — Power features
+
+**Tax Category Export**
+Tag categories as tax-deductible, then export a CSV/PDF summary at tax time. "Here are your $3,200 in deductible expenses."
+
+**Savings Rate Meter**
+Prominent stat: "You're saving 22% of income." Benchmark against common targets (15%, 20%). Trend over time on the dashboard.
+
+**Net Worth Timeline**
+Combine the balance tracker with monthly net cash flow to show a running net worth chart — the most motivating chart in personal finance.
+
+**Merchant Merge**
+"TIM HORTONS #1234" and "TIM HORTONS #5678" are the same place. Merge merchants under one canonical name so reports are clean without manual category work.
