@@ -242,6 +242,7 @@ jobs:
           COMMENT_ID: ${{ steps.comment.outputs.result }}
           VERSION: ${{ steps.meta.outputs.base }}
           FULL_IMAGE: ${{ steps.meta.outputs.full_image }}
+          IMAGE_TAG: ${{ steps.meta.outputs.image_tag }}
         with:
           script: |
             await github.rest.issues.updateComment({
@@ -254,6 +255,7 @@ jobs:
                 '|---|---|',
                 `| **Status** | ✅ Pushed |`,
                 `| **Version** | \`${process.env.VERSION}\` |`,
+                `| **Image**   | \`${process.env.IMAGE_TAG}\` |`,
                 `| **Commit**  | \`${context.sha.slice(0, 7)}\` |`,
                 '',
                 '```bash',
