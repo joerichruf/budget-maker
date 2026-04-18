@@ -3,27 +3,25 @@
 
 {% block content %}
 <div class="page-header">
-  <h2>Dashboard</h2>
+  <h2>Dashboard{% if month %} <small>{{ month }}</small>{% endif %}</h2>
 </div>
 
 {# ── Month filter ── #}
-<form method="get" action="/dashboard" class="filters-form">
-  <div class="filter-row">
-    <label>
-      Month
-      <select name="month">
+<div class="filters-panel">
+  <form method="get" action="/dashboard">
+    <div class="filter-chips-row">
+      <select name="month" class="filter-chip{% if month %} active{% endif %}" onchange="this.form.submit()">
         <option value="">All months</option>
         {% for m in available_months %}
         <option value="{{ m.value }}" {% if month == m.value %}selected{% endif %}>{{ m.display }}</option>
         {% endfor %}
       </select>
-    </label>
-    <div class="filter-actions">
-      <button type="submit">Filter</button>
-      <a href="/dashboard" role="button" class="secondary outline">Clear</a>
+      {% if month %}
+      <a href="/dashboard" class="filter-chip clear-chip">&#215; Clear</a>
+      {% endif %}
     </div>
-  </div>
-</form>
+  </form>
+</div>
 
 {# ── Summary cards ── #}
 <div class="summary-cards">
