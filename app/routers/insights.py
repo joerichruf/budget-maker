@@ -34,8 +34,9 @@ def insights(request: Request, db: Session = Depends(get_db)):
     )
 
     # ── Top 10 expense categories ──
-    top_categories = (
+    top_categories_raw = (
         db.query(
+            Category.id,
             Category.name,
             Category.color,
             func.sum(Transaction.amount).label("total"),
@@ -48,6 +49,25 @@ def insights(request: Request, db: Session = Depends(get_db)):
         .limit(10)
         .all()
     )
+
+    top_categories = []
+    for cat in top_categories_raw:
+        txns = (
+            db.query(Transaction.date, Transaction.description, Transaction.amount)
+            .filter(Transaction.category_id == cat.id, Transaction.amount < 0)
+            .order_by(Transaction.amount)
+            .limit(10)
+            .all()
+        )
+        top_categories.append(
+            {
+                "name": cat.name,
+                "color": cat.color,
+                "total": cat.total,
+                "count": cat.count,
+                "transactions": txns,
+            }
+        )
 
     # ── Per-month net balance ──
     monthly_rows = (
