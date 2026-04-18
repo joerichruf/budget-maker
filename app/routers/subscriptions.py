@@ -44,11 +44,7 @@ def detect_subscriptions(db: Session) -> list[dict]:
     subscriptions = []
 
     for key, group in grouped.items():
-        if len(group) < 2:
-            continue
-
-        amounts = [abs(t.amount) for t in group]
-        if max(amounts) - min(amounts) > 0.01:
+        if len(group) < 3:
             continue
 
         dates = sorted(t.date for t in group)
@@ -57,13 +53,13 @@ def detect_subscriptions(db: Session) -> list[dict]:
             continue
 
         gaps = [(dates[i + 1] - dates[i]).days for i in range(len(dates) - 1)]
-        avg_gap = statistics.mean(gaps)
 
-        amount = amounts[0]
-        if 25 <= avg_gap <= 40:
+        last_txn = max(group, key=lambda t: t.date)
+        amount = abs(last_txn.amount)
+        if all(25 <= g <= 45 for g in gaps):
             cadence = "monthly"
             monthly_cost = amount
-        elif 330 <= avg_gap <= 400:
+        elif all(330 <= g <= 400 for g in gaps):
             cadence = "annual"
             monthly_cost = amount / 12
         else:
@@ -88,7 +84,6 @@ def detect_subscriptions(db: Session) -> list[dict]:
         else:
             next_charge = last_date.replace(year=last_date.year + 1)
 
-        last_txn = max(group, key=lambda t: t.date)
         subscriptions.append(
             {
                 "display_name": last_txn.description,
@@ -112,8 +107,11 @@ def detect_subscriptions(db: Session) -> list[dict]:
 
 
 @router.get("/subscriptions", response_class=HTMLResponse)
-def subscriptions_page(request: Request, db: Session = Depends(get_db)):
+def subscriptions_page(request: Request, q: str = "", db: Session = Depends(get_db)):
     subs = detect_subscriptions(db)
+    if q:
+        q_lower = q.lower()
+        subs = [s for s in subs if q_lower in s["display_name"].lower()]
     total_monthly = round(sum(s["monthly_cost"] for s in subs), 2)
     return templates.TemplateResponse(
         request,
@@ -123,5 +121,6 @@ def subscriptions_page(request: Request, db: Session = Depends(get_db)):
             "total_monthly": total_monthly,
             "total_annual": round(total_monthly * 12, 2),
             "forgotten_count": sum(1 for s in subs if s["forgotten"]),
+            "q": q,
         },
     )

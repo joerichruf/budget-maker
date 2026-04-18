@@ -137,10 +137,31 @@ def test_subscriptions_skips_irregular_gaps(db, account):
     assert "RANDOM STORE" not in names
 
 
-def test_subscriptions_skips_different_prices(db, account):
-    """Transactions at different prices must not be flagged as subscriptions."""
+def test_subscriptions_skips_daily_coffee(db, account):
+    """Daily coffee shop visits must not be flagged as subscriptions."""
+    cat = db.query(Category).filter_by(name="Restaurants & Coffee").first()
+    for i in range(30):
+        db.add(
+            Transaction(
+                fitid=f"COFFEE-{i}",
+                bank="scotiabank",
+                account_id=account.id,
+                date=date.today() - timedelta(days=30 - i),
+                amount=-5.50,
+                description="STARBUCKS",
+                category_id=cat.id,
+            )
+        )
+    db.commit()
+    subs = detect_subscriptions(db)
+    names = [s["display_name"] for s in subs]
+    assert "STARBUCKS" not in names
+
+
+def test_subscriptions_price_increase_still_detected(db, account):
+    """A price increase mid-subscription should still be detected; most recent price shown."""
     cat = db.query(Category).filter_by(name="Groceries").first()
-    amounts = [-10.00, -10.50, -10.00, -10.50]
+    amounts = [-10.00, -10.00, -12.00, -12.00]
     for i, amt in enumerate(amounts):
         db.add(
             Transaction(
@@ -149,14 +170,29 @@ def test_subscriptions_skips_different_prices(db, account):
                 account_id=account.id,
                 date=date.today() - timedelta(days=30 * (len(amounts) - i)),
                 amount=amt,
-                description="VARIABLE CHARGE",
+                description="PRICE CHANGED SUB",
                 category_id=cat.id,
             )
         )
     db.commit()
     subs = detect_subscriptions(db)
     names = [s["display_name"] for s in subs]
-    assert "VARIABLE CHARGE" not in names
+    assert "PRICE CHANGED SUB" in names
+    sub = next(s for s in subs if s["display_name"] == "PRICE CHANGED SUB")
+    assert sub["amount"] == 12.00
+
+
+def test_subscriptions_filter_by_name(client, db, account):
+    cat = db.query(Category).filter_by(name="Entertainment").first()
+    today = date.today()
+    start = date(today.year - 1, today.month, 1)
+    _add_monthly(db, account, cat, "NETFLIX.COM", -17.99, start, n=4)
+    _add_monthly(db, account, cat, "SPOTIFY.COM", -10.99, start, n=4)
+
+    resp = client.get("/subscriptions?q=netflix")
+    assert resp.status_code == 200
+    assert "NETFLIX.COM" in resp.text
+    assert "SPOTIFY.COM" not in resp.text
 
 
 def test_subscriptions_skips_inconsistent_day(db, account):
