@@ -4,11 +4,34 @@
 {% block content %}
 <div class="page-header">
   <h2>Review "Other" Transactions</h2>
-  <div style="display:flex;gap:0.5rem;align-items:center">
+  <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
     <span id="suggestion-status" class="muted" style="font-size:0.85rem"></span>
     <button id="suggest-btn" class="outline" onclick="loadSuggestions()">✦ Ask Claude</button>
     <button id="accept-all-btn" class="outline" style="display:none" onclick="acceptAll()">Accept All Suggestions</button>
+    <button class="outline small-btn" onclick="openAddCategory()" type="button">+ New Category</button>
   </div>
+</div>
+
+{# ── Inline add-category modal ── #}
+<div id="add-cat-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:1000;align-items:center;justify-content:center">
+  <article style="max-width:360px;width:90%;padding:1.5rem;margin:0">
+    <h3 style="margin-top:0">New Category</h3>
+    <div class="form-row" style="gap:0.75rem;flex-direction:column">
+      <label style="margin:0">
+        Name
+        <input type="text" id="new-cat-name" placeholder="e.g. Subscriptions" style="margin:0" />
+      </label>
+      <label style="margin:0">
+        Colour
+        <input type="color" id="new-cat-color" value="#6366f1" style="margin:0;height:2.5rem;padding:0.2rem" />
+      </label>
+    </div>
+    <div style="display:flex;gap:0.5rem;margin-top:1rem;justify-content:flex-end">
+      <button class="outline" type="button" onclick="closeAddCategory()">Cancel</button>
+      <button type="button" onclick="submitNewCategory()">Create</button>
+    </div>
+    <p id="add-cat-error" class="muted" style="font-size:0.8rem;margin-top:0.5rem;color:var(--danger,#f43f5e);display:none"></p>
+  </article>
 </div>
 
 {% if not rows %}
@@ -162,14 +185,16 @@ async function submitRow(idx) {
 }
 
 async function acceptAll() {
-  // Build payload: use current select value for each row that has an AI suggestion
+  // Build payload from AI suggestions — use suggestion name directly
   const payload = {};
   document.querySelectorAll('#review-table tbody tr').forEach(row => {
     const desc = row.dataset.desc;
+    if (!desc) return;
     const idx = row.id.replace('row-', '');
     const sel = document.getElementById('sel-' + idx);
     if (!sel) return;
-    const catName = sel.options[sel.selectedIndex].dataset.name;
+    // Use the visible text of the selected option as the category name
+    const catName = sel.options[sel.selectedIndex].text.trim();
     if (catName && catName !== 'Other') {
       payload[desc] = catName;
     }
@@ -191,12 +216,58 @@ async function acceptAll() {
       body: JSON.stringify(payload),
     });
     if (!resp.ok) throw new Error('Save failed');
-    const data = await resp.json();
+    await resp.json();
     window.location.reload();
   } catch (err) {
     alert('Error saving: ' + err.message);
     btn.disabled = false;
     btn.textContent = 'Accept All Suggestions';
+  }
+}
+
+function openAddCategory() {
+  const overlay = document.getElementById('add-cat-overlay');
+  overlay.style.display = 'flex';
+  document.getElementById('new-cat-name').focus();
+}
+
+function closeAddCategory() {
+  document.getElementById('add-cat-overlay').style.display = 'none';
+  document.getElementById('add-cat-error').style.display = 'none';
+}
+
+async function submitNewCategory() {
+  const name = document.getElementById('new-cat-name').value.trim();
+  const color = document.getElementById('new-cat-color').value;
+  const errEl = document.getElementById('add-cat-error');
+  if (!name) { errEl.textContent = 'Name is required.'; errEl.style.display = ''; return; }
+
+  const fd = new FormData();
+  fd.append('name', name);
+  fd.append('color', color);
+
+  try {
+    const resp = await fetch('/review/categories', { method: 'POST', body: fd });
+    const data = await resp.json();
+    if (!data.ok) {
+      errEl.textContent = data.error || 'Failed to create category.';
+      errEl.style.display = '';
+      return;
+    }
+    // Add the new category to all selects on the page
+    document.querySelectorAll('select[name="category_id"]').forEach(sel => {
+      const opt = document.createElement('option');
+      opt.value = data.id;
+      opt.text = data.name;
+      sel.appendChild(opt);
+    });
+    // Update CAT_MAP so acceptAll() can find it
+    CAT_MAP[data.name] = data.id;
+    closeAddCategory();
+    document.getElementById('new-cat-name').value = '';
+  } catch (err) {
+    errEl.textContent = 'Error: ' + err.message;
+    errEl.style.display = '';
   }
 }
 </script>
