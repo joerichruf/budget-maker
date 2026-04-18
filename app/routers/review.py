@@ -97,6 +97,9 @@ def apply_single(
             )
         )
     db.commit()
+    accept = request.headers.get("accept", "")
+    if "application/json" in accept:
+        return JSONResponse({"ok": True})
     return RedirectResponse(url="/review", status_code=303)
 
 

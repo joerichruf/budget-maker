@@ -136,10 +136,29 @@ async function loadSuggestions() {
   }
 }
 
-function submitRow(idx) {
+async function submitRow(idx) {
   const row = document.getElementById('row-' + idx);
   const form = row.querySelector('.apply-form');
-  form.submit();
+  const btn = document.getElementById('save-' + idx);
+
+  btn.disabled = true;
+  btn.textContent = '…';
+
+  try {
+    const resp = await fetch('/review/apply', {
+      method: 'POST',
+      headers: { 'Accept': 'application/json' },
+      body: new FormData(form),
+    });
+    if (!resp.ok) throw new Error('Save failed');
+    btn.textContent = '✓ Saved';
+    btn.classList.remove('outline');
+    btn.style.opacity = '0.6';
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = 'Save';
+    alert('Error: ' + err.message);
+  }
 }
 
 async function acceptAll() {
