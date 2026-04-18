@@ -16,6 +16,17 @@ from sqlalchemy.orm import relationship
 from app.database import Base
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False, unique=True)
+    color = Column(String, default="#6366f1")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    accounts = relationship("Account", back_populates="user")
+
+
 class Account(Base):
     __tablename__ = "accounts"
 
@@ -23,9 +34,11 @@ class Account(Base):
     bank = Column(String, nullable=False)  # 'scotiabank' | 'bmo'
     account_number = Column(String)  # raw ACCTID from QFX
     account_type = Column(String)  # CHECKING | SAVINGS | …
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     transactions = relationship("Transaction", back_populates="account")
+    user = relationship("User", back_populates="accounts")
 
 
 class Category(Base):

@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Users — Budget Maker{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>Users</h2>
+</div>
+
+{% if users %}
+<div class="table-wrapper" style="margin-bottom:1.5rem">
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Color</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+      <tr>
+        <td>
+          <span class="user-dot" style="background:{{ u.color }}"></span>
+          <strong>{{ u.name }}</strong>
+        </td>
+        <td><code>{{ u.color }}</code></td>
+        <td style="text-align:right">
+          <form method="post" action="/users/{{ u.id }}/delete" style="display:inline" onsubmit="return confirm('Delete {{ u.name }}? Their accounts will become unassigned.')">
+            <button type="submit" class="danger-btn outline">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<article>
+  <p>No users yet. Add one below.</p>
+</article>
+{% endif %}
+
+<details class="add-form-section">
+  <summary role="button" class="outline secondary">+ Add User</summary>
+  <div class="add-form">
+    <form method="post" action="/users">
+      <div class="form-row">
+        <label>
+          Name
+          <input type="text" name="name" placeholder="e.g. Alice" required />
+        </label>
+        <label class="color-label">
+          Color
+          <input type="color" name="color" value="#6366f1" />
+        </label>
+        <div style="align-self:flex-end">
+          <button type="submit">Add</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</details>
+{% endblock %}

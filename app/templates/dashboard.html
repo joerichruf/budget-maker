@@ -6,7 +6,7 @@
   <h2>Dashboard{% if month %} <small>{{ month }}</small>{% endif %}</h2>
 </div>
 
-{# ── Month filter ── #}
+{# ── Filters ── #}
 <div class="filters-panel">
   <form method="get" action="/dashboard">
     <div class="filter-chips-row">
@@ -16,21 +16,34 @@
         <option value="{{ m.value }}" {% if month == m.value %}selected{% endif %}>{{ m.display }}</option>
         {% endfor %}
       </select>
-      {% if month %}
+
+      {% for u in users %}
+      <input type="hidden" name="_" value="" style="display:none" />
+      <label class="user-filter-pill">
+        <input type="checkbox" name="user_id" value="{{ u.id }}"
+               {% if u.id in user_ids %}checked{% endif %}
+               onchange="this.form.submit()" />
+        <span class="pill-label" style="background:{{ u.color }}18; border-color:{{ u.color }}; color:{{ u.color }}">
+          {{ u.name }}
+        </span>
+      </label>
+      {% endfor %}
+
+      {% if month or user_ids %}
       <a href="/dashboard" class="filter-chip clear-chip">&#215; Clear</a>
       {% endif %}
     </div>
   </form>
 </div>
 
-{# ── Summary cards ── #}
+{# ── Combined summary cards ── #}
 <div class="summary-cards">
   <div class="summary-card income">
-    <span class="card-label">Income</span>
+    <span class="card-label">{% if user_ids %}Filtered {% endif %}Income</span>
     <span class="card-value">+${{ "%.2f"|format(total_income) }}</span>
   </div>
   <div class="summary-card expenses">
-    <span class="card-label">Expenses</span>
+    <span class="card-label">{% if user_ids %}Filtered {% endif %}Expenses</span>
     <span class="card-value">-${{ "%.2f"|format(total_expenses|abs) }}</span>
   </div>
   <div class="summary-card net {% if net >= 0 %}net-pos{% else %}net-neg{% endif %}">
@@ -39,11 +52,46 @@
   </div>
 </div>
 
+{# ── Per-user sections (shown only when no user filter = viewing "All") ── #}
+{% if per_user %}
+<div class="per-user-sections">
+  {% for us in per_user %}
+  <div class="per-user-card">
+    <div class="per-user-header">
+      <span class="user-dot" style="background:{{ us.user.color }}"></span>
+      <h3 style="color:{{ us.user.color }}">{{ us.user.name }}</h3>
+    </div>
+    <div class="summary-cards" style="margin-bottom:0">
+      <div class="summary-card income" style="border-top-color:{{ us.user.color }}">
+        <span class="card-label">Income</span>
+        <span class="card-value" style="color:{{ us.user.color }}">+${{ "%.2f"|format(us.income) }}</span>
+      </div>
+      <div class="summary-card expenses">
+        <span class="card-label">Expenses</span>
+        <span class="card-value">-${{ "%.2f"|format(us.expenses|abs) }}</span>
+      </div>
+      <div class="summary-card net {% if us.net >= 0 %}net-pos{% else %}net-neg{% endif %}">
+        <span class="card-label">Net</span>
+        <span class="card-value">{{ '+' if us.net >= 0 else '' }}${{ "%.2f"|format(us.net) }}</span>
+      </div>
+    </div>
+    {% if us.has_data %}
+    <div class="per-user-chart">
+      <canvas id="pieUser{{ us.user.id }}"></canvas>
+    </div>
+    {% else %}
+    <p class="muted" style="font-size:0.85rem;margin-top:0.75rem">No expense data{% if month %} for {{ month }}{% endif %}.</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
 {# ── Charts ── #}
 {% if has_data %}
 <div class="chart-section">
   <div class="chart-header">
-    <h3>Spending by Category{% if month %} — {{ month }}{% endif %}</h3>
+    <h3>Spending by Category{% if month %} — {{ month }}{% endif %}{% if user_ids %} (filtered){% endif %}</h3>
     <button id="toggleChart" class="outline secondary" type="button">Show Histogram</button>
   </div>
 
@@ -59,11 +107,11 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2/dist/chartjs-plugin-datalabels.min.js"></script>
 <script>
+  Chart.register(ChartDataLabels);
+
   const labels = {{ chart_labels | safe }};
   const values = {{ chart_values | safe }};
   const colors = {{ chart_colors | safe }};
-
-  Chart.register(ChartDataLabels);
 
   new Chart(document.getElementById('expenseChart'), {
     type: 'doughnut',
@@ -153,6 +201,46 @@
     hist.style.display = showing ? 'block' : 'none';
     this.textContent = showing ? 'Show Pie Chart' : 'Show Histogram';
   });
+
+  {% if per_user %}
+  {% for us in per_user %}
+  {% if us.has_data %}
+  (function() {
+    const uLabels = {{ us.chart_labels | safe }};
+    const uValues = {{ us.chart_values | safe }};
+    const uColors = {{ us.chart_colors | safe }};
+    new Chart(document.getElementById('pieUser{{ us.user.id }}'), {
+      type: 'doughnut',
+      data: {
+        labels: uLabels,
+        datasets: [{
+          data: uValues,
+          backgroundColor: uColors.map(c => c + '99'),
+          borderColor: uColors,
+          borderWidth: 2,
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { position: 'right' },
+          datalabels: {
+            formatter: (value, ctx) => {
+              const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+              const pct = (value / total) * 100;
+              if (pct < 5) return '';
+              return pct.toFixed(1) + '%';
+            },
+            color: '#fff',
+            font: { size: 10, weight: 'bold' },
+          }
+        }
+      }
+    });
+  })();
+  {% endif %}
+  {% endfor %}
+  {% endif %}
 </script>
 {% else %}
 <article>

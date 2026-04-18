@@ -54,6 +54,18 @@
       </select>
     </label>
 
+    {% if users %}
+    <label for="user_id">
+      Assign to user
+      <select id="user_id" name="user_id">
+        <option value="0">— No user —</option>
+        {% for u in users %}
+        <option value="{{ u.id }}">{{ u.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    {% endif %}
+
     <button type="submit">Import transactions</button>
   </form>
 </div>

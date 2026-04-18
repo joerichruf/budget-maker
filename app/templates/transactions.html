@@ -13,9 +13,10 @@
   {%- if filters.bank %}&bank={{ filters.bank }}{% endif -%}
   {%- for cid in filters.category_ids %}&category_id={{ cid }}{% endfor -%}
   {%- if filters.account_type %}&account_type={{ filters.account_type }}{% endif -%}
+  {%- for uid in filters.user_ids %}&user_id={{ uid }}{% endfor -%}
 {%- endset -%}
 
-{%- set has_filters = filters.month or filters.bank or filters.account_type or filters.category_ids -%}
+{%- set has_filters = filters.month or filters.bank or filters.account_type or filters.category_ids or filters.user_ids -%}
 
 <div class="filters-panel">
   <form method="get" action="/" id="filter-form">
@@ -47,6 +48,21 @@
       <a href="/" class="filter-chip clear-chip">× Clear</a>
       {% endif %}
     </div>
+
+    {% if users %}
+    <div class="cat-filter-row" style="margin-bottom:0.5rem">
+      {% for u in users %}
+      <label class="cat-filter-pill user-filter-pill">
+        <input type="checkbox" name="user_id" value="{{ u.id }}"
+               {% if u.id in filters.user_ids %}checked{% endif %}
+               onchange="this.form.submit()" />
+        <span class="pill-label" style="background:{{ u.color }}18; border-color:{{ u.color }}; color:{{ u.color }}">
+          {{ u.name }}
+        </span>
+      </label>
+      {% endfor %}
+    </div>
+    {% endif %}
 
     <div class="cat-filter-row">
       {% for cat in categories %}

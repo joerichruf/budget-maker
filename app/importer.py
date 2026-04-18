@@ -47,9 +47,14 @@ def _get_or_create_account(db: Session, parsed: ParsedFile) -> Account:
     return account
 
 
-def import_parsed_file(parsed: ParsedFile, db: Session) -> ImportResult:
+def import_parsed_file(
+    parsed: ParsedFile, db: Session, user_id: int | None = None
+) -> ImportResult:
     result = ImportResult()
     account = _get_or_create_account(db, parsed)
+    if user_id:
+        account.user_id = user_id
+        db.flush()
 
     for ptxn in parsed.transactions:
         # Check duplicate via FITID + bank before attempting insert
