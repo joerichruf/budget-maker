@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Subscription Radar — Budget Maker{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>Subscription Radar</h2>
+</div>
+
+{% if subscriptions %}
+<div class="summary-cards">
+  <div class="summary-card expenses">
+    <span class="card-label">Monthly total</span>
+    <span class="card-value">-${{ "%.2f"|format(total_monthly) }}</span>
+  </div>
+  <div class="summary-card net-neg">
+    <span class="card-label">Annual total</span>
+    <span class="card-value">-${{ "%.2f"|format(total_annual) }}</span>
+  </div>
+  <div class="summary-card {% if forgotten_count > 0 %}net-neg{% else %}net-pos{% endif %}">
+    <span class="card-label">Forgotten</span>
+    <span class="card-value">{{ forgotten_count }}</span>
+  </div>
+</div>
+
+<div class="table-wrapper">
+  <table>
+    <thead>
+      <tr>
+        <th>Merchant</th>
+        <th>Cadence</th>
+        <th>Occurrences</th>
+        <th>Last charge</th>
+        <th class="amount-col">Avg charge</th>
+        <th class="amount-col">/ month</th>
+        <th class="amount-col">/ year</th>
+        <th>Category</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in subscriptions %}
+      <tr class="{% if s.forgotten %}sub-forgotten{% endif %}">
+        <td><strong>{{ s.display_name }}</strong></td>
+        <td>
+          <span class="cadence-badge cadence-{{ s.cadence }}">{{ s.cadence }}</span>
+        </td>
+        <td class="amount-col muted">{{ s.count }}×</td>
+        <td class="nowrap muted">{{ s.last_charge }}</td>
+        <td class="amount-col amount-neg">-${{ "%.2f"|format(s.avg_amount) }}</td>
+        <td class="amount-col amount-neg">-${{ "%.2f"|format(s.monthly_cost) }}</td>
+        <td class="amount-col muted">-${{ "%.2f"|format(s.annual_cost) }}</td>
+        <td>
+          {% if s.category %}
+          <span class="cat-badge" style="background:{{ s.category.color }}18; border-color:{{ s.category.color }}; color:{{ s.category.color }}">
+            {{ s.category.name }}
+          </span>
+          {% else %}
+          <span class="muted">—</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if s.forgotten %}
+          <span class="sub-status-badge sub-forgotten-badge" title="{{ s.days_since }} days since last charge">
+            Forgotten
+          </span>
+          {% else %}
+          <span class="sub-status-badge sub-active-badge">Active</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<p class="muted" style="margin-top:1rem;font-size:0.8rem">
+  Detected from transactions with consistent amount (CV &lt; 30%) and monthly (25–40 day) or annual (330–400 day) cadence.
+  "Forgotten" = no charge in over 60 days.
+</p>
+
+{% else %}
+<article>
+  <p>No recurring subscriptions detected yet. <a href="/import">Import transactions</a> to get started — subscriptions become visible once a charge appears at least twice.</p>
+</article>
+{% endif %}
+{% endblock %}

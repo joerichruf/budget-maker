@@ -75,6 +75,47 @@
 </article>
 {% endif %}
 
+{# ── Autopilot suggestions ── #}
+{% if suggestions %}
+<section class="autopilot-section">
+  <div class="autopilot-header">
+    <div>
+      <h3 style="margin:0;font-size:1rem;font-weight:700">Autopilot suggestions</h3>
+      <p class="muted" style="margin:0.2rem 0 0;font-size:0.8rem">Based on your last 3 months of spending</p>
+    </div>
+    <form method="post" action="/budgets/accept-suggestions" id="accept-all-form">
+      {% for s in suggestions %}
+      <input type="hidden" name="category_ids" value="{{ s.category.id }}" />
+      <input type="hidden" name="monthly_limits" value="{{ s.suggested_limit }}" />
+      {% endfor %}
+      <button type="submit" class="small-btn">Accept all {{ suggestions|length }}</button>
+    </form>
+  </div>
+  <div class="budget-grid" style="margin-top:1rem">
+    {% for s in suggestions %}
+    <article class="suggestion-card">
+      <div class="budget-card-header">
+        <span class="cat-badge" style="background:{{ s.category.color }}18; border-color:{{ s.category.color }}; color:{{ s.category.color }}">
+          {{ s.category.name }}
+        </span>
+        <form method="post" action="/budgets/set" style="margin:0">
+          <input type="hidden" name="category_id" value="{{ s.category.id }}" />
+          <input type="hidden" name="monthly_limit" value="{{ s.suggested_limit }}" />
+          <button type="submit" class="small-btn outline">Accept</button>
+        </form>
+      </div>
+      <div class="goal-stats">
+        <div class="goal-stat">
+          <span class="stat-label">3-month avg</span>
+          <span class="stat-value">${{ "%.2f"|format(s.suggested_limit) }}</span>
+        </div>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
 {# ── Add budget form ── #}
 <details class="add-form-section">
   <summary role="button" class="outline small-btn">+ Add budget</summary>

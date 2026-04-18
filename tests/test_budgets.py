@@ -149,3 +149,58 @@ def test_delete_budget(client, db, budget):
 def test_delete_budget_nonexistent(client):
     resp = client.post("/budgets/99999/delete")
     assert resp.status_code == 200
+
+
+# ── POST /budgets/accept-suggestions ──────────────────────────────────────────
+
+
+def test_accept_suggestions_creates_budgets(client, db):
+    entertainment = db.query(Category).filter_by(name="Entertainment").first()
+    groceries = db.query(Category).filter_by(name="Groceries").first()
+    resp = client.post(
+        "/budgets/accept-suggestions",
+        data={
+            "category_ids": [entertainment.id, groceries.id],
+            "monthly_limits": ["250.00", "400.00"],
+        },
+    )
+    assert resp.status_code == 200
+    assert (
+        db.query(CategoryBudget).filter_by(category_id=entertainment.id).first()
+        is not None
+    )
+    assert (
+        db.query(CategoryBudget).filter_by(category_id=groceries.id).first() is not None
+    )
+
+
+def test_accept_suggestions_empty_is_noop(client):
+    resp = client.post("/budgets/accept-suggestions", data={})
+    assert resp.status_code == 200
+
+
+def test_budgets_page_shows_suggestions(client, db):
+    """Unbudgeted categories with 3-month history appear as suggestions."""
+    entertainment = db.query(Category).filter_by(name="Entertainment").first()
+    account = Account(
+        bank="scotiabank", account_number="AUTO-1", account_type="CHECKING"
+    )
+    db.add(account)
+    db.flush()
+    for mo in [1, 2, 3]:
+        db.add(
+            Transaction(
+                fitid=f"AUTO-{mo}",
+                bank="scotiabank",
+                account_id=account.id,
+                date=date(2024, mo, 15),
+                amount=-150.0,
+                description="MOVIE TICKET",
+                category_id=entertainment.id,
+            )
+        )
+    db.commit()
+
+    resp = client.get("/budgets")
+    assert resp.status_code == 200
+    assert "Autopilot" in resp.text

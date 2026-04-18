@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block title %}Monthly Digest — Budget Maker{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>Monthly Digest{% if has_data %} <small>{{ cur_label }}</small>{% endif %}</h2>
+  {% if has_data and smtp_configured %}
+  <button class="outline small-btn" id="sendEmailBtn" type="button" onclick="sendDigestEmail()">
+    Send email
+  </button>
+  {% endif %}
+</div>
+
+{% if not has_data %}
+<article>
+  <p>No completed months of data yet. <a href="/import">Import transactions</a> to generate a digest.</p>
+</article>
+
+{% else %}
+
+{# ── Summary cards ── #}
+<div class="summary-cards">
+  <div class="summary-card income">
+    <span class="card-label">Income</span>
+    <span class="card-value">+${{ "%.2f"|format(cur.income) }}</span>
+    {% if income_change is not none %}
+    <span class="card-delta {% if income_change >= 0 %}delta-pos{% else %}delta-neg{% endif %}">
+      {{ '+' if income_change >= 0 else '' }}${{ "%.2f"|format(income_change) }} vs {{ prev_label }}
+    </span>
+    {% endif %}
+  </div>
+  <div class="summary-card expenses">
+    <span class="card-label">Expenses</span>
+    <span class="card-value">-${{ "%.2f"|format(cur.expenses) }}</span>
+    {% if expenses_change is not none %}
+    <span class="card-delta {% if expenses_change <= 0 %}delta-pos{% else %}delta-neg{% endif %}">
+      {{ '+' if expenses_change >= 0 else '' }}${{ "%.2f"|format(expenses_change) }} vs {{ prev_label }}
+    </span>
+    {% endif %}
+  </div>
+  <div class="summary-card {% if cur.net >= 0 %}net-pos{% else %}net-neg{% endif %}">
+    <span class="card-label">Net</span>
+    <span class="card-value">{{ '+' if cur.net >= 0 else '' }}${{ "%.2f"|format(cur.net) }}</span>
+    {% if net_change is not none %}
+    <span class="card-delta {% if net_change >= 0 %}delta-pos{% else %}delta-neg{% endif %}">
+      {{ '+' if net_change >= 0 else '' }}${{ "%.2f"|format(net_change) }} vs {{ prev_label }}
+    </span>
+    {% endif %}
+  </div>
+</div>
+
+{# ── Category changes ── #}
+{% if top_increases or top_decreases %}
+<div class="digest-grid">
+
+  {% if top_increases %}
+  <section class="digest-section">
+    <h3 class="digest-section-title digest-up">Biggest increases</h3>
+    {% for c in top_increases %}
+    <div class="digest-change-row">
+      <span class="cat-badge" style="background:{{ c.category.color }}18; border-color:{{ c.category.color }}; color:{{ c.category.color }}">
+        {{ c.category.name }}
+      </span>
+      <span class="digest-change-nums">
+        <span class="amount-neg">+${{ "%.2f"|format(c.change) }}</span>
+        <span class="muted" style="font-size:0.75rem">
+          ${{ "%.2f"|format(c.prev) }} → ${{ "%.2f"|format(c.cur) }}
+        </span>
+      </span>
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+  {% if top_decreases %}
+  <section class="digest-section">
+    <h3 class="digest-section-title digest-down">Biggest savings</h3>
+    {% for c in top_decreases %}
+    <div class="digest-change-row">
+      <span class="cat-badge" style="background:{{ c.category.color }}18; border-color:{{ c.category.color }}; color:{{ c.category.color }}">
+        {{ c.category.name }}
+      </span>
+      <span class="digest-change-nums">
+        <span class="amount-pos">-${{ "%.2f"|format(c.change|abs) }}</span>
+        <span class="muted" style="font-size:0.75rem">
+          ${{ "%.2f"|format(c.prev) }} → ${{ "%.2f"|format(c.cur) }}
+        </span>
+      </span>
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+
+</div>
+{% endif %}
+
+{# ── Trending up ── #}
+{% if trending_up %}
+<section class="digest-section" style="margin-top:1.5rem">
+  <h3 class="digest-section-title digest-up">Trending up (3 months)</h3>
+  <p class="muted" style="font-size:0.8rem;margin-bottom:0.75rem">
+    These categories have increased every month for the last 3 months.
+  </p>
+  <div class="budget-grid">
+    {% for t in trending_up %}
+    <article class="budget-card budget-trend-warn">
+      <div class="budget-card-header">
+        <span class="cat-badge" style="background:{{ t.category.color }}18; border-color:{{ t.category.color }}; color:{{ t.category.color }}">
+          {{ t.category.name }}
+        </span>
+      </div>
+      <div class="goal-stats">
+        {% for s in t.spends %}
+        <div class="goal-stat">
+          <span class="stat-label">Month {{ loop.index }}</span>
+          <span class="stat-value">${{ "%.2f"|format(s) }}</span>
+        </div>
+        {% endfor %}
+        <div class="goal-stat">
+          <span class="stat-label">Increase</span>
+          <span class="stat-value amount-neg">+${{ "%.2f"|format(t.increase) }}</span>
+        </div>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+{# ── Budget performance ── #}
+{% if budget_perf %}
+<section class="digest-section" style="margin-top:1.5rem">
+  <h3 class="digest-section-title">
+    Budget performance
+    {% if over_budget_count > 0 %}
+    <span class="digest-over-badge">{{ over_budget_count }} over</span>
+    {% endif %}
+  </h3>
+  <div class="table-wrapper">
+    <table>
+      <thead>
+        <tr>
+          <th>Category</th>
+          <th class="amount-col">Spent</th>
+          <th class="amount-col">Limit</th>
+          <th class="amount-col">Used</th>
+          <th>Bar</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for b in budget_perf %}
+        <tr>
+          <td>{{ b.category.name }}</td>
+          <td class="amount-col {% if b.over %}amount-neg{% endif %}">${{ "%.2f"|format(b.spent) }}</td>
+          <td class="amount-col muted">${{ "%.2f"|format(b.limit) }}</td>
+          <td class="amount-col muted">{{ b.pct }}%</td>
+          <td style="min-width:100px">
+            <div class="budget-bar-track">
+              <div class="budget-bar-fill {% if b.over %}budget-bar-over{% endif %}"
+                   style="width:{{ [b.pct, 100]|min }}%"></div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+
+{% if not smtp_configured %}
+<p class="muted" style="margin-top:2rem;font-size:0.8rem">
+  To enable email delivery, set <code>SMTP_HOST</code>, <code>SMTP_PORT</code>,
+  <code>SMTP_USER</code>, <code>SMTP_PASS</code>, and <code>DIGEST_TO</code> environment variables.
+</p>
+{% endif %}
+
+{% endif %}{# end has_data #}
+
+<script>
+async function sendDigestEmail() {
+  var btn = document.getElementById('sendEmailBtn');
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+  try {
+    var resp = await fetch('/digest/send-email', { method: 'POST' });
+    var data = await resp.json();
+    btn.textContent = data.success ? 'Sent!' : 'Failed';
+    btn.title = data.message;
+    if (!data.success) btn.disabled = false;
+  } catch (e) {
+    btn.textContent = 'Error';
+    btn.disabled = false;
+  }
+}
+</script>
+{% endblock %}
