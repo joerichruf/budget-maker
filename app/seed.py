@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from app.models import Account, CategorizationRule, Category, User
+from app.models import Account, CategorizationRule, Category
 
 CATEGORIES: list[dict] = [
     {"name": "Groceries", "color": "#4CAF50", "is_income": False},
@@ -172,19 +172,7 @@ RULES: list[tuple[str, str, int]] = [
 ]
 
 
-USERS: list[dict] = [
-    {"name": "User 1", "color": "#6366f1"},
-    {"name": "User 2", "color": "#f59e0b"},
-]
-
-
 def seed(db: Session) -> None:
-    # Insert default users
-    for user_data in USERS:
-        if not db.query(User).filter_by(name=user_data["name"]).first():
-            db.add(User(**user_data))
-    db.flush()
-
     # Insert categories that don't exist yet
     category_map: dict[str, int] = {}
     for cat_data in CATEGORIES:

@@ -13,7 +13,10 @@ templates = Jinja2Templates(directory="app/templates")
 @router.get("/users", response_class=HTMLResponse)
 def users_page(request: Request, db: Session = Depends(get_db)):
     users = db.query(User).order_by(User.name).all()
-    return templates.TemplateResponse(request, "users.html", {"users": users})
+    accounts = db.query(Account).order_by(Account.bank, Account.account_number).all()
+    return templates.TemplateResponse(
+        request, "users.html", {"users": users, "accounts": accounts}
+    )
 
 
 @router.post("/users")
@@ -38,5 +41,19 @@ def delete_user(request: Request, user_id: int, db: Session = Depends(get_db)):
             {"user_id": None}, synchronize_session="fetch"
         )
         db.delete(user)
+        db.commit()
+    return RedirectResponse(url="/users", status_code=303)
+
+
+@router.post("/accounts/{account_id}/assign")
+def assign_account(
+    request: Request,
+    account_id: int,
+    user_id: int = Form(...),
+    db: Session = Depends(get_db),
+):
+    account = db.query(Account).filter(Account.id == account_id).first()
+    if account:
+        account.user_id = user_id if user_id else None
         db.commit()
     return RedirectResponse(url="/users", status_code=303)

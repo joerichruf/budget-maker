@@ -8,7 +8,7 @@ from fastapi.testclient import TestClient
 
 from app.database import get_db
 from app.main import app
-from app.models import Category, Transaction
+from app.models import Category, Transaction, User
 
 # Minimal valid Scotiabank QFX for upload tests
 _SCOTIABANK_QFX = b"""OFXHEADER:100
@@ -73,6 +73,15 @@ def client(db):
     app.dependency_overrides.clear()
 
 
+@pytest.fixture
+def user(db):
+    u = User(name="Test User", color="#6366f1")
+    db.add(u)
+    db.commit()
+    db.refresh(u)
+    return u
+
+
 # ---------------------------------------------------------------------------
 # Import page
 # ---------------------------------------------------------------------------
@@ -84,11 +93,11 @@ def test_import_page_loads(client):
     assert "Import QFX" in resp.text
 
 
-def test_import_post_success(client, db):
+def test_import_post_success(client, db, user):
     resp = client.post(
         "/import",
         files={"file": ("export.qfx", _SCOTIABANK_QFX, "application/octet-stream")},
-        data={"bank_hint": "auto"},
+        data={"bank_hint": "auto", "user_id": str(user.id)},
     )
     assert resp.status_code == 200
     assert "2" in resp.text  # "2 transaction(s) imported"
@@ -98,10 +107,10 @@ def test_import_post_success(client, db):
     assert db.query(Transaction).count() == 2
 
 
-def test_import_post_dedup(client, db):
+def test_import_post_dedup(client, db, user):
     payload = {
         "files": {"file": ("export.qfx", _SCOTIABANK_QFX, "application/octet-stream")},
-        "data": {"bank_hint": "auto"},
+        "data": {"bank_hint": "auto", "user_id": str(user.id)},
     }
     client.post("/import", **payload)
     resp = client.post("/import", **payload)
@@ -110,24 +119,34 @@ def test_import_post_dedup(client, db):
     assert db.query(Transaction).count() == 2
 
 
-def test_import_post_bad_file_returns_error(client):
+def test_import_post_bad_file_returns_error(client, user):
     resp = client.post(
         "/import",
         files={"file": ("bad.qfx", b"not valid qfx data", "application/octet-stream")},
-        data={"bank_hint": "auto"},
+        data={"bank_hint": "auto", "user_id": str(user.id)},
     )
     assert resp.status_code == 200
     assert "Failed to parse" in resp.text or "Error" in resp.text
 
 
-def test_import_post_with_bank_hint(client, db):
+def test_import_post_with_bank_hint(client, db, user):
     resp = client.post(
         "/import",
         files={"file": ("export.qfx", _SCOTIABANK_QFX, "application/octet-stream")},
-        data={"bank_hint": "scotiabank"},
+        data={"bank_hint": "scotiabank", "user_id": str(user.id)},
     )
     assert resp.status_code == 200
     assert db.query(Transaction).count() == 2
+
+
+def test_import_post_no_user_returns_error(client):
+    resp = client.post(
+        "/import",
+        files={"file": ("export.qfx", _SCOTIABANK_QFX, "application/octet-stream")},
+        data={"bank_hint": "auto"},
+    )
+    assert resp.status_code == 200
+    assert "Please select a user" in resp.text
 
 
 # ---------------------------------------------------------------------------
@@ -141,11 +160,11 @@ def test_transaction_list_empty(client):
     assert "No transactions found" in resp.text
 
 
-def test_transaction_list_shows_imported(client, db):
+def test_transaction_list_shows_imported(client, db, user):
     client.post(
         "/import",
         files={"file": ("export.qfx", _SCOTIABANK_QFX, "application/octet-stream")},
-        data={"bank_hint": "auto"},
+        data={"bank_hint": "auto", "user_id": str(user.id)},
     )
     resp = client.get("/")
     assert resp.status_code == 200
@@ -153,11 +172,11 @@ def test_transaction_list_shows_imported(client, db):
     assert "DIRECT DEPOSIT" in resp.text
 
 
-def test_transaction_list_filter_by_bank(client, db):
+def test_transaction_list_filter_by_bank(client, db, user):
     client.post(
         "/import",
         files={"file": ("export.qfx", _SCOTIABANK_QFX, "application/octet-stream")},
-        data={"bank_hint": "auto"},
+        data={"bank_hint": "auto", "user_id": str(user.id)},
     )
     resp = client.get("/?bank=bmo")
     assert resp.status_code == 200
@@ -165,22 +184,22 @@ def test_transaction_list_filter_by_bank(client, db):
     assert "No transactions found" in resp.text
 
 
-def test_transaction_list_filter_by_month(client, db):
+def test_transaction_list_filter_by_month(client, db, user):
     client.post(
         "/import",
         files={"file": ("export.qfx", _SCOTIABANK_QFX, "application/octet-stream")},
-        data={"bank_hint": "auto"},
+        data={"bank_hint": "auto", "user_id": str(user.id)},
     )
     resp = client.get("/?month=2024-01")
     assert resp.status_code == 200
     assert "TIM HORTONS" in resp.text
 
 
-def test_transaction_list_filter_by_category(client, db):
+def test_transaction_list_filter_by_category(client, db, user):
     client.post(
         "/import",
         files={"file": ("export.qfx", _SCOTIABANK_QFX, "application/octet-stream")},
-        data={"bank_hint": "auto"},
+        data={"bank_hint": "auto", "user_id": str(user.id)},
     )
     income_cat = db.query(Category).filter_by(name="Income").first()
     resp = client.get(f"/?category_id={income_cat.id}")
@@ -194,11 +213,11 @@ def test_transaction_list_filter_by_category(client, db):
 # ---------------------------------------------------------------------------
 
 
-def test_update_category(client, db):
+def test_update_category(client, db, user):
     client.post(
         "/import",
         files={"file": ("export.qfx", _SCOTIABANK_QFX, "application/octet-stream")},
-        data={"bank_hint": "auto"},
+        data={"bank_hint": "auto", "user_id": str(user.id)},
     )
     txn = db.query(Transaction).filter(Transaction.fitid == "RT-001").first()
     shopping = db.query(Category).filter_by(name="Shopping").first()

@@ -25,7 +25,7 @@
 {% endif %}
 
 <div class="import-container">
-  <form method="post" action="/import" enctype="multipart/form-data" class="import-form">
+  <form method="post" action="/import" enctype="multipart/form-data" class="import-form" id="import-form">
 
     <div class="file-dropzone" id="dropzone">
       <input type="file" id="file" name="file" accept=".qfx,.ofx" required />
@@ -54,19 +54,43 @@
       </select>
     </label>
 
-    {% if users %}
-    <label for="user_id">
-      Assign to user
-      <select id="user_id" name="user_id">
-        <option value="0">— No user —</option>
-        {% for u in users %}
-        <option value="{{ u.id }}">{{ u.name }}</option>
-        {% endfor %}
-      </select>
-    </label>
-    {% endif %}
+    {# ── User assignment (required) ── #}
+    <div class="import-user-section">
+      <label style="font-weight:600;margin-bottom:0.5rem;display:block">
+        Import for
+        <span class="import-user-required" style="color:var(--danger);font-size:0.8rem;font-weight:500"> * required</span>
+      </label>
 
-    <button type="submit">Import transactions</button>
+      {% if users %}
+      <div class="import-user-row">
+        <select id="user_id" name="user_id" class="import-user-select" onchange="handleUserSelect(this.value)">
+          <option value="0">— Select a user —</option>
+          {% for u in users %}
+          <option value="{{ u.id }}" style="color:{{ u.color }}">{{ u.name }}</option>
+          {% endfor %}
+          <option value="new">+ Create new user…</option>
+        </select>
+      </div>
+      {% endif %}
+
+      <div id="new-user-fields" class="new-user-fields{% if not users %} new-user-fields-visible{% endif %}">
+        {% if not users %}
+        <p class="import-no-users-hint">Create your first user to get started.</p>
+        {% endif %}
+        <div class="form-row">
+          <label style="flex:1">
+            Name
+            <input type="text" id="new_user_name" name="new_user_name" placeholder="e.g. Alice" {% if not users %}required{% endif %} />
+          </label>
+          <label class="color-label">
+            Color
+            <input type="color" name="new_user_color" value="#6366f1" />
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <button type="submit" id="submit-btn">Import transactions</button>
   </form>
 </div>
 
@@ -90,5 +114,23 @@
     dropzone.classList.remove('dragover');
     if (this.files && this.files[0]) showFilename(this.files[0].name);
   });
+
+  function handleUserSelect(val) {
+    var newFields = document.getElementById('new-user-fields');
+    var nameInput = document.getElementById('new_user_name');
+    if (val === 'new') {
+      newFields.classList.add('new-user-fields-visible');
+      nameInput.required = true;
+    } else {
+      newFields.classList.remove('new-user-fields-visible');
+      nameInput.required = false;
+      nameInput.value = '';
+    }
+  }
+
+  {% if not users %}
+  // No existing users — name field is always required
+  document.getElementById('new_user_name').required = true;
+  {% endif %}
 </script>
 {% endblock %}
