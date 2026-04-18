@@ -75,7 +75,7 @@ def suggest_categories(descriptions: list[str]) -> dict[str, str]:
         batch = descriptions[i : i + batch_size]
         try:
             response = client.messages.create(
-                model="claude-haiku-4-5",
+                model="claude-haiku-4-5-20251001",
                 max_tokens=1024,
                 system=[
                     {
@@ -91,7 +91,20 @@ def suggest_categories(descriptions: list[str]) -> dict[str, str]:
                     }
                 ],
             )
-            text = next((b.text for b in response.content if b.type == "text"), "{}")
+            text = next((b.text for b in response.content if b.type == "text"), "")
+            # Strip markdown code fences the model occasionally wraps around JSON
+            text = (
+                text.strip()
+                .removeprefix("```json")
+                .removeprefix("```")
+                .removesuffix("```")
+                .strip()
+            )
+            if not text:
+                logger.warning(
+                    "AI returned empty response for batch %d", i // batch_size
+                )
+                continue
             batch_result = json.loads(text)
             results.update(batch_result)
         except Exception as exc:

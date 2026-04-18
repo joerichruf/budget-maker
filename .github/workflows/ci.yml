@@ -87,6 +87,8 @@ jobs:
       - name: Run GitVersion
         id: gv
         uses: gittools/actions/gitversion/execute@v3
+        with:
+          useConfigFile: true
 
       # ── Compute image tag ────────────────────────────────────────────────
       - name: Compute tags
@@ -259,29 +261,59 @@ jobs:
               ].join('\n'),
             });
 
-      # ── On main: push git tag + create GitHub Release ────────────────────
-      - name: Push version tag
+      # ── On main: create tag via API (verified) + GitHub Release ─────────
+      - name: Create tag and release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: |
-          TAG="v${{ steps.meta.outputs.image_tag }}"
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag "$TAG" && git push origin "$TAG" || echo "Tag $TAG already exists"
-
-      - name: Create GitHub Release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        uses: softprops/action-gh-release@v2
+        uses: actions/github-script@v7
+        env:
+          IMAGE_TAG: ${{ steps.meta.outputs.image_tag }}
+          FULL_IMAGE: ${{ steps.meta.outputs.full_image }}
         with:
-          tag_name: v${{ steps.meta.outputs.image_tag }}
-          generate_release_notes: true
-          body: |
-            ## Docker image
+          script: |
+            const tag = `v${process.env.IMAGE_TAG}`;
+            const fullImage = process.env.FULL_IMAGE;
 
-            ```bash
-            docker pull ${{ steps.meta.outputs.full_image }}
-            ```
+            // Create annotated tag via API — marked "verified" by GitHub,
+            // no GPG key needed even when branch protection requires signed commits.
+            let tagSha;
+            try {
+              const { data: tagObj } = await github.rest.git.createTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag,
+                message: `Release ${tag}`,
+                object: context.sha,
+                type: 'commit',
+              });
+              tagSha = tagObj.sha;
+            } catch (e) {
+              if (e.status === 422) {
+                core.info(`Tag ${tag} already exists, skipping.`);
+                return;
+              }
+              throw e;
+            }
 
-            Or pin in `docker-compose.yml`:
-            ```yaml
-            image: ${{ steps.meta.outputs.full_image }}
-            ```
+            await github.rest.git.createRef({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: `refs/tags/${tag}`,
+              sha: tagSha,
+            });
+
+            // Auto-generate release notes from merged PRs since last release
+            const { data: release } = await github.rest.repos.generateReleaseNotes({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tag,
+            });
+
+            await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tag,
+              name: release.name,
+              body: release.body + `\n\n## Docker image\n\n\`\`\`bash\ndocker pull ${fullImage}\n\`\`\`\n`,
+              draft: false,
+              prerelease: false,
+            });
