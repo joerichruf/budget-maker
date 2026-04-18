@@ -520,6 +520,64 @@ table {
   padding: 2px 8px;
 }
 
+/* ── Budget cards ── */
+.budget-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.budget-card {
+  border: 1px solid var(--pico-muted-border-color, #ddd);
+  border-radius: 8px;
+  padding: 1.2rem 1.4rem;
+}
+
+.budget-card.budget-ok         { border-left: 4px solid #43a047; }
+.budget-card.budget-over       { border-left: 4px solid #e53935; }
+.budget-card.budget-trend-warn { border-left: 4px solid #fb8c00; }
+
+.budget-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.budget-amounts {
+  display: flex;
+  gap: 1.2rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+
+.budget-bar-track {
+  height: 8px;
+  background: var(--pico-muted-border-color, #e0e0e0);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 0.3rem;
+}
+
+.budget-bar-fill {
+  height: 100%;
+  background: #43a047;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.budget-bar-fill.budget-bar-over { background: #e53935; }
+.budget-bar-fill.budget-bar-warn { background: #fb8c00; }
+
+.budget-bar-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--pico-muted-color, #888);
+  margin-bottom: 0.25rem;
+}
+
 /* ── Dashboard chart section ── */
 .chart-section {
   margin-top: 1rem;

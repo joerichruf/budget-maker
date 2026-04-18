@@ -40,6 +40,7 @@ class Category(Base):
         "CategorizationRule", back_populates="category", cascade="all, delete-orphan"
     )
     transactions = relationship("Transaction", back_populates="category")
+    budget = relationship("CategoryBudget", back_populates="category", uselist=False)
 
 
 class CategorizationRule(Base):
@@ -84,6 +85,19 @@ class BalanceEntry(Base):
     balance = Column(Float, nullable=False)
     as_of_date = Column(Date, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class CategoryBudget(Base):
+    __tablename__ = "category_budgets"
+
+    id = Column(Integer, primary_key=True)
+    category_id = Column(
+        Integer, ForeignKey("categories.id"), nullable=False, unique=True
+    )
+    monthly_limit = Column(Float, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    category = relationship("Category", back_populates="budget")
 
 
 class Goal(Base):
