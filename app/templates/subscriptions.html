@@ -6,6 +6,12 @@
   <h2>Subscription Radar</h2>
 </div>
 
+<form method="get" action="/subscriptions" style="margin-bottom:1rem;display:flex;gap:0.5rem;align-items:center">
+  <input type="search" name="q" value="{{ q }}" placeholder="Filter by name…" style="max-width:20rem;margin:0">
+  <button type="submit" class="secondary">Filter</button>
+  {% if q %}<a href="/subscriptions" role="button" class="secondary outline">Clear</a>{% endif %}
+</form>
+
 {% if subscriptions %}
 <div class="summary-cards">
   <div class="summary-card expenses">
@@ -80,8 +86,8 @@
 </div>
 
 <p class="muted" style="margin-top:1rem;font-size:0.8rem">
-  Detected from transactions with the exact same price and billing day (±3 days) repeating on a
-  monthly (25–40 day) or annual (330–400 day) cadence.
+  Detected from transactions with a consistent billing day (±3 days) repeating on a
+  monthly (25–40 day) or annual (330–400 day) cadence. Amount shown is the most recent charge.
   "Forgotten" = no charge in over 60 days.
 </p>
 
