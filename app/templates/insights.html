@@ -88,9 +88,34 @@
         {% for cat in top_categories %}
         <tr>
           <td>
-            <span class="cat-badge" style="background:{{ cat.color }}18; border-color:{{ cat.color }}; color:{{ cat.color }}">
-              {{ cat.name }}
-            </span>
+            <details>
+              <summary style="cursor:pointer; list-style:none; display:flex; align-items:center; gap:0.4rem;">
+                <span style="font-size:0.6rem; color:var(--pico-muted-color)">▶</span>
+                <span class="cat-badge" style="background:{{ cat.color }}18; border-color:{{ cat.color }}; color:{{ cat.color }}">
+                  {{ cat.name }}
+                </span>
+              </summary>
+              <div style="margin-top:0.5rem; margin-left:0.5rem;">
+                <table style="font-size:0.8rem; width:100%; border:none;">
+                  <thead>
+                    <tr>
+                      <th style="padding:0.2rem 0.4rem;">Date</th>
+                      <th style="padding:0.2rem 0.4rem;">Description</th>
+                      <th class="amount-col" style="padding:0.2rem 0.4rem;">Amount</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for txn in cat.transactions %}
+                    <tr>
+                      <td style="padding:0.2rem 0.4rem; white-space:nowrap;">{{ txn.date.strftime('%Y-%m-%d') }}</td>
+                      <td style="padding:0.2rem 0.4rem;">{{ txn.description }}</td>
+                      <td class="amount-col amount-neg" style="padding:0.2rem 0.4rem;">-${{ "%.2f"|format(txn.amount|abs) }}</td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </details>
           </td>
           <td class="amount-col">{{ cat.count }}</td>
           <td class="amount-col amount-neg">-${{ "%.2f"|format(cat.total|abs) }}</td>
