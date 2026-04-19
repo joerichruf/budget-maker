@@ -40,52 +40,17 @@
 <div class="summary-cards">
   <div class="summary-card income">
     <span class="card-label">{% if user_ids %}Filtered {% endif %}Income</span>
-    <span class="card-value">+${{ "%.2f"|format(total_income) }}</span>
+    <span class="card-value">+${{ "{:,.2f}".format(total_income) }}</span>
   </div>
   <div class="summary-card expenses">
     <span class="card-label">{% if user_ids %}Filtered {% endif %}Expenses</span>
-    <span class="card-value">-${{ "%.2f"|format(total_expenses|abs) }}</span>
+    <span class="card-value">-${{ "{:,.2f}".format(total_expenses|abs) }}</span>
   </div>
   <div class="summary-card net {% if net >= 0 %}net-pos{% else %}net-neg{% endif %}">
     <span class="card-label">Net</span>
-    <span class="card-value">{{ '+' if net >= 0 else '' }}${{ "%.2f"|format(net) }}</span>
+    <span class="card-value">{{ '+' if net >= 0 else '' }}${{ "{:,.2f}".format(net) }}</span>
   </div>
 </div>
-
-{# ── Per-user sections (shown only when no user filter = viewing "All") ── #}
-{% if per_user %}
-<div class="per-user-sections">
-  {% for us in per_user %}
-  <div class="per-user-card">
-    <div class="per-user-header">
-      <span class="user-dot" style="background:{{ us.user.color }}"></span>
-      <h3 style="color:{{ us.user.color }}">{{ us.user.name }}</h3>
-    </div>
-    <div class="summary-cards" style="margin-bottom:0">
-      <div class="summary-card income" style="border-top-color:{{ us.user.color }}">
-        <span class="card-label">Income</span>
-        <span class="card-value" style="color:{{ us.user.color }}">+${{ "%.2f"|format(us.income) }}</span>
-      </div>
-      <div class="summary-card expenses">
-        <span class="card-label">Expenses</span>
-        <span class="card-value">-${{ "%.2f"|format(us.expenses|abs) }}</span>
-      </div>
-      <div class="summary-card net {% if us.net >= 0 %}net-pos{% else %}net-neg{% endif %}">
-        <span class="card-label">Net</span>
-        <span class="card-value">{{ '+' if us.net >= 0 else '' }}${{ "%.2f"|format(us.net) }}</span>
-      </div>
-    </div>
-    {% if us.has_data %}
-    <div class="per-user-chart">
-      <canvas id="pieUser{{ us.user.id }}"></canvas>
-    </div>
-    {% else %}
-    <p class="muted" style="font-size:0.85rem;margin-top:0.75rem">No expense data{% if month %} for {{ month }}{% endif %}.</p>
-    {% endif %}
-  </div>
-  {% endfor %}
-</div>
-{% endif %}
 
 {# ── Charts ── #}
 {% if has_data %}
@@ -95,14 +60,56 @@
     <button id="toggleChart" class="outline secondary" type="button">Show Histogram</button>
   </div>
 
-  <div id="pieContainer" class="chart-container">
-    <canvas id="expenseChart"></canvas>
+  <div id="pieContainer" class="chart-card">
+    <div class="chart-canvas-wrap">
+      <canvas id="expenseChart"></canvas>
+    </div>
   </div>
 
-  <div id="histContainer" class="chart-container" style="display:none">
-    <canvas id="histChart"></canvas>
+  <div id="histContainer" class="chart-card" style="display:none">
+    <div class="chart-canvas-wrap chart-canvas-wide">
+      <canvas id="histChart"></canvas>
+    </div>
   </div>
 </div>
+
+{# ── Per-user sections (shown only when no user filter = viewing "All") ── #}
+{% if per_user %}
+<h3 class="per-user-heading">By User</h3>
+<div class="per-user-sections">
+  {% for us in per_user %}
+  <div class="per-user-card">
+    <div class="per-user-header">
+      <span class="user-dot" style="background:{{ us.user.color }}"></span>
+      <h4 style="color:{{ us.user.color }}">{{ us.user.name }}</h4>
+    </div>
+    <div class="per-user-stats">
+      <div class="per-user-stat">
+        <span class="stat-label">Income</span>
+        <span class="stat-value" style="color:var(--success)">+${{ "{:,.0f}".format(us.income) }}</span>
+      </div>
+      <div class="per-user-stat">
+        <span class="stat-label">Expenses</span>
+        <span class="stat-value" style="color:var(--danger)">-${{ "{:,.0f}".format(us.expenses|abs) }}</span>
+      </div>
+      <div class="per-user-stat">
+        <span class="stat-label">Net</span>
+        <span class="stat-value {% if us.net >= 0 %}text-success{% else %}text-danger{% endif %}">
+          {{ '+' if us.net >= 0 else '' }}${{ "{:,.0f}".format(us.net) }}
+        </span>
+      </div>
+    </div>
+    {% if us.has_data %}
+    <div class="per-user-chart">
+      <canvas id="pieUser{{ us.user.id }}"></canvas>
+    </div>
+    {% else %}
+    <p class="muted" style="font-size:0.8rem;margin-top:0.5rem">No expense data{% if month %} for {{ month }}{% endif %}.</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2/dist/chartjs-plugin-datalabels.min.js"></script>
@@ -119,22 +126,31 @@
       labels: labels,
       datasets: [{
         data: values,
-        backgroundColor: colors.map(c => c + '99'),
+        backgroundColor: colors.map(c => c + 'cc'),
         borderColor: colors,
         borderWidth: 2,
+        hoverOffset: 6,
       }]
     },
     options: {
       responsive: true,
-      maintainAspectRatio: true,
+      maintainAspectRatio: false,
+      cutout: '62%',
       plugins: {
-        legend: { position: 'right' },
+        legend: {
+          position: 'right',
+          labels: {
+            boxWidth: 12,
+            padding: 14,
+            font: { size: 12 },
+          }
+        },
         tooltip: {
           callbacks: {
             label: (ctx) => {
               const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
               const pct = ((ctx.parsed / total) * 100).toFixed(1);
-              return ` ${ctx.label}: $${ctx.parsed.toFixed(2)} (${pct}%)`;
+              return ` ${ctx.label}: $${ctx.parsed.toLocaleString('en-CA', {minimumFractionDigits:2, maximumFractionDigits:2})} (${pct}%)`;
             }
           }
         },
@@ -142,8 +158,8 @@
           formatter: (value, ctx) => {
             const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
             const pct = (value / total) * 100;
-            if (pct < 5) return '';
-            return ctx.chart.data.labels[ctx.dataIndex] + '\n' + pct.toFixed(1) + '%';
+            if (pct < 6) return '';
+            return pct.toFixed(1) + '%';
           },
           color: '#fff',
           font: { size: 11, weight: 'bold' },
@@ -165,24 +181,32 @@
         {
           label: 'Income',
           data: histIncome,
-          backgroundColor: '#43a04799',
-          borderColor: '#43a047',
+          backgroundColor: '#10b98166',
+          borderColor: '#10b981',
           borderWidth: 1,
+          borderRadius: 4,
         },
         {
           label: 'Expenses',
           data: histExpenses,
-          backgroundColor: '#e5393599',
-          borderColor: '#e53935',
+          backgroundColor: '#f43f5e66',
+          borderColor: '#f43f5e',
           borderWidth: 1,
+          borderRadius: 4,
         }
       ]
     },
     options: {
       responsive: true,
+      maintainAspectRatio: false,
       plugins: {
         datalabels: { display: false },
         legend: { position: 'top' },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => ` ${ctx.dataset.label}: $${ctx.parsed.y.toLocaleString('en-CA', {minimumFractionDigits:2, maximumFractionDigits:2})}`,
+          }
+        }
       },
       scales: {
         y: {
@@ -215,24 +239,36 @@
         labels: uLabels,
         datasets: [{
           data: uValues,
-          backgroundColor: uColors.map(c => c + '99'),
+          backgroundColor: uColors.map(c => c + 'cc'),
           borderColor: uColors,
           borderWidth: 2,
+          hoverOffset: 4,
         }]
       },
       options: {
         responsive: true,
+        maintainAspectRatio: false,
+        cutout: '55%',
         plugins: {
-          legend: { position: 'right' },
+          legend: { display: false },
           datalabels: {
             formatter: (value, ctx) => {
               const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
               const pct = (value / total) * 100;
-              if (pct < 5) return '';
-              return pct.toFixed(1) + '%';
+              if (pct < 8) return '';
+              return pct.toFixed(0) + '%';
             },
             color: '#fff',
             font: { size: 10, weight: 'bold' },
+          },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                const pct = ((ctx.parsed / total) * 100).toFixed(1);
+                return ` ${ctx.label}: $${ctx.parsed.toLocaleString('en-CA', {minimumFractionDigits:2, maximumFractionDigits:2})} (${pct}%)`;
+              }
+            }
           }
         }
       }

@@ -182,10 +182,13 @@ def transaction_list(
     user_id: list[int] = Query(default=[]),
     sort: str = "date",
     order: str = "desc",
+    search: str | None = None,
     db: Session = Depends(get_db),
 ):
     query = db.query(Transaction)
 
+    if search:
+        query = query.filter(Transaction.description.ilike(f"%{search}%"))
     if category_id:
         query = query.filter(Transaction.category_id.in_(category_id))
     if bank and bank != "unknown":
@@ -268,12 +271,14 @@ def transaction_list(
             "available_account_types": available_account_types,
             "sort": sort,
             "order": order,
+            "search": search,
             "filters": {
                 "category_ids": category_id,
                 "bank": bank,
                 "month": month,
                 "account_type": account_type,
                 "user_ids": user_id,
+                "search": search,
             },
         },
     )

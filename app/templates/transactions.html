@@ -3,7 +3,7 @@
 
 {% block content %}
 <div class="page-header">
-  <h2>Transactions <small>({{ total }})</small></h2>
+  <h2>Transactions <small>({{ "{:,}".format(total) }})</small></h2>
   <a href="/import" role="button" class="outline">+ Import</a>
 </div>
 
@@ -14,14 +14,31 @@
   {%- for cid in filters.category_ids %}&category_id={{ cid }}{% endfor -%}
   {%- if filters.account_type %}&account_type={{ filters.account_type }}{% endif -%}
   {%- for uid in filters.user_ids %}&user_id={{ uid }}{% endfor -%}
+  {%- if filters.search %}&search={{ filters.search }}{% endif -%}
 {%- endset -%}
 
-{%- set has_filters = filters.month or filters.bank or filters.account_type or filters.category_ids or filters.user_ids -%}
+{%- set has_filters = filters.month or filters.bank or filters.account_type or filters.category_ids or filters.user_ids or filters.search -%}
 
 <div class="filters-panel">
   <form method="get" action="/" id="filter-form">
-    <div class="filter-chips-row">
 
+    {# ── Search bar ── #}
+    <div class="search-row">
+      <div class="search-input-wrap">
+        <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input type="text" name="search" id="search-input" value="{{ filters.search or '' }}"
+               placeholder="Search descriptions…" class="search-input"
+               autocomplete="off" />
+        {% if filters.search %}
+        <button type="button" class="search-clear-btn" onclick="document.getElementById('search-input').value=''; this.form.submit();" aria-label="Clear search">×</button>
+        {% endif %}
+      </div>
+    </div>
+
+    {# ── Dropdown chips row ── #}
+    <div class="filter-chips-row">
       <select name="month" class="filter-chip{% if filters.month %} active{% endif %}" onchange="this.form.submit()">
         <option value="">All months</option>
         {% for m in available_months %}
@@ -44,38 +61,63 @@
       </select>
       {% endif %}
 
+      <button type="button"
+              class="filter-chip filter-toggle-btn{% if filters.category_ids %} active{% endif %}"
+              onclick="toggleSection('cat-filter-section', this)"
+              data-section="cat-filter-section">
+        Categories{% if filters.category_ids %} · {{ filters.category_ids|length }}{% endif %}
+        <svg class="toggle-chevron" width="10" height="6" viewBox="0 0 10 6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l4 4 4-4"/></svg>
+      </button>
+
+      {% if users|length > 1 %}
+      <button type="button"
+              class="filter-chip filter-toggle-btn{% if filters.user_ids %} active{% endif %}"
+              onclick="toggleSection('user-filter-section', this)"
+              data-section="user-filter-section">
+        Users{% if filters.user_ids %} · {{ filters.user_ids|length }}{% endif %}
+        <svg class="toggle-chevron" width="10" height="6" viewBox="0 0 10 6" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l4 4 4-4"/></svg>
+      </button>
+      {% endif %}
+
       {% if has_filters %}
-      <a href="/" class="filter-chip clear-chip">× Clear</a>
+      <a href="/" class="filter-chip clear-chip">× Clear all</a>
       {% endif %}
     </div>
 
-    {% if users %}
-    <div class="cat-filter-row" style="margin-bottom:0.5rem">
-      {% for u in users %}
-      <label class="cat-filter-pill user-filter-pill">
-        <input type="checkbox" name="user_id" value="{{ u.id }}"
-               {% if u.id in filters.user_ids %}checked{% endif %}
-               onchange="this.form.submit()" />
-        <span class="pill-label" style="background:{{ u.color }}18; border-color:{{ u.color }}; color:{{ u.color }}">
-          {{ u.name }}
-        </span>
-      </label>
-      {% endfor %}
+    {# ── Collapsible category pills ── #}
+    <div class="collapsible-filter-section{% if filters.category_ids %} open{% endif %}" id="cat-filter-section">
+      <div class="cat-filter-row">
+        {% for cat in categories %}
+        <label class="cat-filter-pill">
+          <input type="checkbox" name="category_id" value="{{ cat.id }}"
+                 {% if cat.id in filters.category_ids %}checked{% endif %}
+                 onchange="this.form.submit()" />
+          <span class="pill-label" style="background:{{ cat.color }}18; border-color:{{ cat.color }}; color:{{ cat.color }}">
+            {{ cat.name }}
+          </span>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    {# ── Collapsible user pills ── #}
+    {% if users|length > 1 %}
+    <div class="collapsible-filter-section{% if filters.user_ids %} open{% endif %}" id="user-filter-section">
+      <div class="cat-filter-row">
+        {% for u in users %}
+        <label class="cat-filter-pill user-filter-pill">
+          <input type="checkbox" name="user_id" value="{{ u.id }}"
+                 {% if u.id in filters.user_ids %}checked{% endif %}
+                 onchange="this.form.submit()" />
+          <span class="pill-label" style="background:{{ u.color }}18; border-color:{{ u.color }}; color:{{ u.color }}">
+            {{ u.name }}
+          </span>
+        </label>
+        {% endfor %}
+      </div>
     </div>
     {% endif %}
 
-    <div class="cat-filter-row">
-      {% for cat in categories %}
-      <label class="cat-filter-pill">
-        <input type="checkbox" name="category_id" value="{{ cat.id }}"
-               {% if cat.id in filters.category_ids %}checked{% endif %}
-               onchange="this.form.submit()" />
-        <span class="pill-label" style="background:{{ cat.color }}18; border-color:{{ cat.color }}; color:{{ cat.color }}">
-          {{ cat.name }}
-        </span>
-      </label>
-      {% endfor %}
-    </div>
   </form>
 </div>
 
@@ -83,28 +125,28 @@
 <div class="summary-cards">
   <div class="summary-card income">
     <span class="card-label">Income</span>
-    <span class="card-value">+${{ "%.2f"|format(total_income) }}</span>
+    <span class="card-value">+${{ "{:,.2f}".format(total_income) }}</span>
     {% if income_delta is not none %}
     <span class="card-delta {% if income_delta >= 0 %}delta-pos{% else %}delta-neg{% endif %}">
-      {{ '+' if income_delta >= 0 else '' }}${{ "%.2f"|format(income_delta) }} {{ delta_label }}
+      {{ '+' if income_delta >= 0 else '' }}${{ "{:,.2f}".format(income_delta) }} {{ delta_label }}
     </span>
     {% endif %}
   </div>
   <div class="summary-card expenses">
     <span class="card-label">Expenses</span>
-    <span class="card-value">-${{ "%.2f"|format(total_expenses|abs) }}</span>
+    <span class="card-value">-${{ "{:,.2f}".format(total_expenses|abs) }}</span>
     {% if expenses_delta is not none %}
     <span class="card-delta {% if expenses_delta >= 0 %}delta-pos{% else %}delta-neg{% endif %}">
-      {{ '+' if expenses_delta >= 0 else '' }}${{ "%.2f"|format(expenses_delta) }} {{ delta_label }}
+      {{ '+' if expenses_delta >= 0 else '' }}${{ "{:,.2f}".format(expenses_delta) }} {{ delta_label }}
     </span>
     {% endif %}
   </div>
   <div class="summary-card net {% if net >= 0 %}net-pos{% else %}net-neg{% endif %}">
     <span class="card-label">Net</span>
-    <span class="card-value">{{ '+' if net >= 0 else '' }}${{ "%.2f"|format(net) }}</span>
+    <span class="card-value">{{ '+' if net >= 0 else '' }}${{ "{:,.2f}".format(net) }}</span>
     {% if net_delta is not none %}
     <span class="card-delta {% if net_delta >= 0 %}delta-pos{% else %}delta-neg{% endif %}">
-      {{ '+' if net_delta >= 0 else '' }}${{ "%.2f"|format(net_delta) }} {{ delta_label }}
+      {{ '+' if net_delta >= 0 else '' }}${{ "{:,.2f}".format(net_delta) }} {{ delta_label }}
     </span>
     {% endif %}
   </div>
@@ -159,7 +201,7 @@
           {% else %}—{% endif %}
         </td>
         <td class="amount-col {% if txn.amount < 0 %}amount-neg{% else %}amount-pos{% endif %}">
-          {{ "%.2f"|format(txn.amount) }}
+          {{ "{:,.2f}".format(txn.amount) }}
         </td>
         <td class="cat-cell">
           <details class="cat-editor">
@@ -234,7 +276,32 @@
 
 {% else %}
 <article>
+  {% if filters.search %}
+  <p>No transactions matching "<strong>{{ filters.search }}</strong>". <a href="/">Clear search</a></p>
+  {% else %}
   <p>No transactions found. <a href="/import">Import a QFX file</a> to get started.</p>
+  {% endif %}
 </article>
 {% endif %}
+
+<script>
+function toggleSection(sectionId, btn) {
+  var section = document.getElementById(sectionId);
+  var isOpen = section.classList.contains('open');
+  section.classList.toggle('open', !isOpen);
+  btn.classList.toggle('active', !isOpen || btn.classList.contains('active'));
+}
+
+// Submit search on Enter
+document.getElementById('search-input').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') { e.preventDefault(); this.form.submit(); }
+});
+
+// Auto-submit search after 600ms pause
+var searchTimer;
+document.getElementById('search-input').addEventListener('input', function() {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(function() { document.getElementById('filter-form').submit(); }, 600);
+});
+</script>
 {% endblock %}
