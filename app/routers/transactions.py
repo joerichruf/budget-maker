@@ -9,7 +9,7 @@ from sqlalchemy import asc, desc, extract, func
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Account, CategorizationRule, Category, Transaction
+from app.models import Account, CategorizationRule, Category, Transaction, User
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -33,7 +33,22 @@ def _period_income_expenses(q) -> tuple[float, float]:
     return income, expenses
 
 
-def _prev_month_query(db: Session, month: str | None, category_id, bank, account_type):
+def _user_account_ids(db: Session, user_ids: list[int]):
+    """Return a subquery of account IDs belonging to the given user IDs."""
+    return db.query(Account.id).filter(Account.user_id.in_(user_ids))
+
+
+def _apply_user_filter(query, db: Session, user_ids: list[int]):
+    if user_ids:
+        query = query.filter(
+            Transaction.account_id.in_(_user_account_ids(db, user_ids))
+        )
+    return query
+
+
+def _prev_month_query(
+    db: Session, month: str | None, category_id, bank, account_type, user_id
+):
     """Return (query, label) for the comparison period, or (None, None)."""
     if month:
         year_int, mo_int = map(int, month.split("-"))
@@ -71,6 +86,8 @@ def _prev_month_query(db: Session, month: str | None, category_id, bank, account
                 db.query(Account.id).filter(Account.account_type == account_type)
             )
         )
+    q = _apply_user_filter(q, db, user_id)
+
     import calendar as _cal
 
     label = f"vs {_cal.month_name[prev_mo]} {prev_yr}"
@@ -99,6 +116,61 @@ def _available_months(db: Session) -> list[dict]:
     ]
 
 
+def _per_user_stats(db: Session, month: str | None) -> list[dict]:
+    users = db.query(User).order_by(User.name).all()
+    stats = []
+    for u in users:
+        account_ids = db.query(Account.id).filter(Account.user_id == u.id)
+        q = db.query(Transaction).filter(Transaction.account_id.in_(account_ids))
+        if month:
+            year, mo = month.split("-")
+            q = q.filter(
+                extract("year", Transaction.date) == int(year),
+                extract("month", Transaction.date) == int(mo),
+            )
+        income, expenses = _period_income_expenses(q)
+
+        expense_rows = (
+            db.query(
+                Category.name,
+                Category.color,
+                func.sum(Transaction.amount).label("total"),
+            )
+            .join(Transaction, Transaction.category_id == Category.id)
+            .filter(
+                Transaction.account_id.in_(account_ids),
+                Transaction.amount < 0,
+            )
+        )
+        if month:
+            year, mo = month.split("-")
+            expense_rows = expense_rows.filter(
+                extract("year", Transaction.date) == int(year),
+                extract("month", Transaction.date) == int(mo),
+            )
+        expense_rows = (
+            expense_rows.group_by(Category.id)
+            .order_by(func.sum(Transaction.amount))
+            .all()
+        )
+
+        stats.append(
+            {
+                "user": u,
+                "income": income,
+                "expenses": expenses,
+                "net": income + expenses,
+                "chart_labels": json.dumps([r.name for r in expense_rows]),
+                "chart_values": json.dumps(
+                    [round(abs(r.total), 2) for r in expense_rows]
+                ),
+                "chart_colors": json.dumps([r.color for r in expense_rows]),
+                "has_data": len(expense_rows) > 0,
+            }
+        )
+    return stats
+
+
 @router.get("/", response_class=HTMLResponse)
 def transaction_list(
     request: Request,
@@ -107,12 +179,16 @@ def transaction_list(
     account_type: str | None = None,
     bank: str | None = None,
     month: str | None = None,
+    user_id: list[int] = Query(default=[]),
     sort: str = "date",
     order: str = "desc",
+    search: str | None = None,
     db: Session = Depends(get_db),
 ):
     query = db.query(Transaction)
 
+    if search:
+        query = query.filter(Transaction.description.ilike(f"%{search}%"))
     if category_id:
         query = query.filter(Transaction.category_id.in_(category_id))
     if bank and bank != "unknown":
@@ -129,10 +205,13 @@ def transaction_list(
                 db.query(Account.id).filter(Account.account_type == account_type)
             )
         )
+    query = _apply_user_filter(query, db, user_id)
 
     total_income, total_expenses = _period_income_expenses(query)
 
-    prev_q, delta_label = _prev_month_query(db, month, category_id, bank, account_type)
+    prev_q, delta_label = _prev_month_query(
+        db, month, category_id, bank, account_type, user_id
+    )
     if prev_q is not None:
         prev_income, prev_expenses = _period_income_expenses(prev_q)
         income_delta: float | None = total_income - prev_income
@@ -160,6 +239,7 @@ def transaction_list(
     )
 
     categories = db.query(Category).order_by(Category.name).all()
+    users = db.query(User).order_by(User.name).all()
     available_account_types = [
         r[0]
         for r in db.query(Account.account_type)
@@ -176,6 +256,7 @@ def transaction_list(
         {
             "transactions": transactions,
             "categories": categories,
+            "users": users,
             "page": page,
             "total_pages": total_pages,
             "total": total,
@@ -190,11 +271,14 @@ def transaction_list(
             "available_account_types": available_account_types,
             "sort": sort,
             "order": order,
+            "search": search,
             "filters": {
                 "category_ids": category_id,
                 "bank": bank,
                 "month": month,
                 "account_type": account_type,
+                "user_ids": user_id,
+                "search": search,
             },
         },
     )
@@ -216,7 +300,6 @@ def update_category(
             url=request.headers.get("referer", "/"), status_code=303
         )
 
-    # Create a new category if a name was provided
     name = (new_category_name or "").strip()
     if name:
         existing = db.query(Category).filter(Category.name == name).first()
@@ -231,12 +314,10 @@ def update_category(
         final_category_id = category_id
 
     if apply_to_all:
-        # Bulk-update all transactions sharing the same description
         db.query(Transaction).filter(Transaction.description == txn.description).update(
             {"category_id": final_category_id, "is_manual_category": True},
             synchronize_session="fetch",
         )
-        # Upsert a categorization rule so future imports get tagged automatically
         existing_rule = (
             db.query(CategorizationRule)
             .filter(CategorizationRule.pattern == txn.description)
@@ -265,6 +346,7 @@ def update_category(
 def dashboard(
     request: Request,
     month: str | None = None,
+    user_id: list[int] = Query(default=[]),
     db: Session = Depends(get_db),
 ):
     query = db.query(Transaction)
@@ -274,8 +356,9 @@ def dashboard(
             extract("year", Transaction.date) == int(year),
             extract("month", Transaction.date) == int(mo),
         )
+    query = _apply_user_filter(query, db, user_id)
 
-    expense_rows = (
+    expense_q = (
         db.query(
             Category.name,
             Category.color,
@@ -283,15 +366,20 @@ def dashboard(
         )
         .join(Transaction, Transaction.category_id == Category.id)
         .filter(Transaction.amount < 0)
-        .group_by(Category.id)
     )
     if month:
         year, mo = month.split("-")
-        expense_rows = expense_rows.filter(
+        expense_q = expense_q.filter(
             extract("year", Transaction.date) == int(year),
             extract("month", Transaction.date) == int(mo),
         )
-    expense_rows = expense_rows.order_by(func.sum(Transaction.amount)).all()
+    if user_id:
+        expense_q = expense_q.filter(
+            Transaction.account_id.in_(_user_account_ids(db, user_id))
+        )
+    expense_rows = (
+        expense_q.group_by(Category.id).order_by(func.sum(Transaction.amount)).all()
+    )
 
     chart_labels = [r.name for r in expense_rows]
     chart_values = [round(abs(r.total), 2) for r in expense_rows]
@@ -302,8 +390,10 @@ def dashboard(
     total_expenses = sum(t.amount for t in all_txns if t.amount < 0)
     net = total_income + total_expenses
 
-    # Monthly histogram — always unfiltered for full picture
-    all_for_hist = db.query(Transaction).all()
+    # Monthly histogram scoped to current user filter
+    hist_q = db.query(Transaction)
+    hist_q = _apply_user_filter(hist_q, db, user_id)
+    all_for_hist = hist_q.all()
     m_income: dict[str, float] = defaultdict(float)
     m_expenses: dict[str, float] = defaultdict(float)
     for t in all_for_hist:
@@ -317,11 +407,16 @@ def dashboard(
     histogram_income = [round(m_income[m], 2) for m in all_hist_months]
     histogram_expenses = [round(m_expenses[m], 2) for m in all_hist_months]
 
+    users = db.query(User).order_by(User.name).all()
+    per_user = _per_user_stats(db, month) if not user_id else []
+
     return templates.TemplateResponse(
         request,
         "dashboard.html",
         {
             "month": month,
+            "user_ids": user_id,
+            "users": users,
             "chart_labels": json.dumps(chart_labels),
             "chart_values": json.dumps(chart_values),
             "chart_colors": json.dumps(chart_colors),
@@ -333,5 +428,6 @@ def dashboard(
             "histogram_labels": json.dumps(histogram_labels),
             "histogram_income": json.dumps(histogram_income),
             "histogram_expenses": json.dumps(histogram_expenses),
+            "per_user": per_user,
         },
     )
